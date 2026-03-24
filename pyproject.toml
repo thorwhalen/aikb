@@ -40,6 +40,20 @@ Repository = "https://github.com/thorwhalen/aikb"
 Documentation = "https://thorwhalen.github.io/aikb"
 
 [project.optional-dependencies]
+claude = [
+    "claudesync",
+]
+dol = [
+    "dol",
+]
+mcp = [
+    "fastmcp",
+]
+all = [
+    "claudesync",
+    "dol",
+    "fastmcp",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
