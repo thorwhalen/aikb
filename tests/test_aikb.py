@@ -6,79 +6,112 @@ from aikb import (
     KnowledgeFiles,
     KnowledgeBaseProvider,
     LocalFilesProvider,
-    LocalFiles,
-    KnowledgeMall,
+    LocalKb,
 )
+from aikb.base import _resolve_claude_session_key
 
 
 # ---------------------------------------------------------------------------
-# LocalFiles — full MutableMapping contract
+# LocalKb — full MutableMapping contract
 # ---------------------------------------------------------------------------
 
 
-class TestLocalFiles:
+class TestLocalKb:
     @pytest.fixture()
     def store(self, tmp_path):
-        return LocalFiles(str(tmp_path))
+        return LocalKb(str(tmp_path))
 
     def test_setitem_getitem(self, store):
-        store['notes.md'] = '# Notes\nSome content'
-        assert store['notes.md'] == '# Notes\nSome content'
+        store["notes.md"] = "# Notes\nSome content"
+        assert store["notes.md"] == "# Notes\nSome content"
 
     def test_overwrite(self, store):
-        store['a.md'] = 'v1'
-        store['a.md'] = 'v2'
-        assert store['a.md'] == 'v2'
+        store["a.md"] = "v1"
+        store["a.md"] = "v2"
+        assert store["a.md"] == "v2"
 
     def test_delitem(self, store):
-        store['tmp.md'] = 'delete me'
-        del store['tmp.md']
-        assert 'tmp.md' not in store
+        store["tmp.md"] = "delete me"
+        del store["tmp.md"]
+        assert "tmp.md" not in store
 
     def test_delitem_missing_raises(self, store):
         with pytest.raises(KeyError):
-            del store['nonexistent.md']
+            del store["nonexistent.md"]
 
     def test_getitem_missing_raises(self, store):
         with pytest.raises(KeyError):
-            store['nonexistent.md']
+            store["nonexistent.md"]
 
     def test_iter(self, store):
-        store['b.md'] = 'B'
-        store['a.md'] = 'A'
-        assert sorted(store) == ['a.md', 'b.md']
+        store["b.md"] = "B"
+        store["a.md"] = "A"
+        assert sorted(store) == ["a.md", "b.md"]
 
     def test_len(self, store):
         assert len(store) == 0
-        store['a.md'] = 'A'
+        store["a.md"] = "A"
         assert len(store) == 1
-        store['b.md'] = 'B'
+        store["b.md"] = "B"
         assert len(store) == 2
 
     def test_contains(self, store):
-        store['x.md'] = 'X'
-        assert 'x.md' in store
-        assert 'y.md' not in store
+        store["x.md"] = "X"
+        assert "x.md" in store
+        assert "y.md" not in store
 
     def test_contains_non_string(self, store):
         assert 42 not in store
 
     def test_keys_values_items(self, store):
-        store['a.md'] = 'A'
-        store['b.md'] = 'B'
-        assert sorted(store.keys()) == ['a.md', 'b.md']
-        assert sorted(store.values()) == ['A', 'B']
-        assert sorted(store.items()) == [('a.md', 'A'), ('b.md', 'B')]
+        store["a.md"] = "A"
+        store["b.md"] = "B"
+        assert sorted(store.keys()) == ["a.md", "b.md"]
+        assert sorted(store.values()) == ["A", "B"]
+        assert sorted(store.items()) == [("a.md", "A"), ("b.md", "B")]
 
     def test_update(self, store):
-        store.update({'one.md': '1', 'two.md': '2'})
-        assert store['one.md'] == '1'
-        assert store['two.md'] == '2'
+        store.update({"one.md": "1", "two.md": "2"})
+        assert store["one.md"] == "1"
+        assert store["two.md"] == "2"
 
     def test_repr(self, store):
         r = repr(store)
-        assert 'KnowledgeFiles' in r
-        assert 'LocalFilesProvider' in r
+        assert "KnowledgeFiles" in r
+        assert "LocalFilesProvider" in r
+
+
+# ---------------------------------------------------------------------------
+# LocalKb defaults
+# ---------------------------------------------------------------------------
+
+
+class TestLocalKbDefaults:
+    def test_default_dir(self, tmp_path, monkeypatch):
+        """LocalKb() with no args uses AIKB_LOCAL_DIR or ~/.local/share/aikb/..."""
+        monkeypatch.setenv("AIKB_LOCAL_DIR", str(tmp_path))
+        store = LocalKb()
+        store["test.md"] = "hello"
+        assert store["test.md"] == "hello"
+        # File should be under tmp_path/default/
+        assert (tmp_path / "default" / "test.md").read_text() == "hello"
+
+    def test_env_var_override(self, tmp_path, monkeypatch):
+        """AIKB_LOCAL_DIR overrides the default directory."""
+        custom_dir = tmp_path / "custom"
+        monkeypatch.setenv("AIKB_LOCAL_DIR", str(custom_dir))
+        store = LocalKb()
+        store["x.md"] = "X"
+        assert (custom_dir / "default" / "x.md").read_text() == "X"
+
+    def test_explicit_rootdir_takes_precedence(self, tmp_path, monkeypatch):
+        """Explicit rootdir overrides AIKB_LOCAL_DIR."""
+        monkeypatch.setenv("AIKB_LOCAL_DIR", str(tmp_path / "env"))
+        explicit = tmp_path / "explicit"
+        store = LocalKb(str(explicit))
+        store["y.md"] = "Y"
+        assert (explicit / "default" / "y.md").read_text() == "Y"
+        assert not (tmp_path / "env" / "default" / "y.md").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -98,51 +131,36 @@ class TestProtocol:
 
 
 class TestFactoryFunctions:
-    def test_local_files_returns_knowledge_files(self, tmp_path):
-        store = LocalFiles(str(tmp_path))
+    def test_local_kb_returns_knowledge_files(self, tmp_path):
+        store = LocalKb(str(tmp_path))
         assert isinstance(store, KnowledgeFiles)
 
-    def test_local_files_custom_project_id(self, tmp_path):
-        store = LocalFiles(str(tmp_path), project_id='myproj')
-        assert store._project_id == 'myproj'
+    def test_local_kb_custom_project_id(self, tmp_path):
+        store = LocalKb(str(tmp_path), project_id="myproj")
+        assert store._project_id == "myproj"
 
 
 # ---------------------------------------------------------------------------
-# KnowledgeMall
+# Session key resolution
 # ---------------------------------------------------------------------------
 
 
-class TestKnowledgeMall:
-    def test_access_by_name(self, tmp_path):
-        s = LocalFiles(str(tmp_path))
-        mall = KnowledgeMall(staging=s)
-        assert mall['staging'] is s
+class TestResolveClaudeSessionKey:
+    def test_explicit_key_returned(self):
+        assert _resolve_claude_session_key("sk-ant-test") == "sk-ant-test"
 
-    def test_iter(self, tmp_path):
-        s1 = LocalFiles(str(tmp_path / 'a'))
-        s2 = LocalFiles(str(tmp_path / 'b'))
-        mall = KnowledgeMall(alpha=s1, beta=s2)
-        assert sorted(mall) == ['alpha', 'beta']
+    def test_env_var(self, monkeypatch):
+        monkeypatch.setenv("CLAUDE_SESSION_KEY", "sk-ant-env")
+        assert _resolve_claude_session_key() == "sk-ant-env"
 
-    def test_len(self, tmp_path):
-        s = LocalFiles(str(tmp_path))
-        mall = KnowledgeMall(one=s)
-        assert len(mall) == 1
+    def test_explicit_overrides_env(self, monkeypatch):
+        monkeypatch.setenv("CLAUDE_SESSION_KEY", "sk-ant-env")
+        assert _resolve_claude_session_key("sk-ant-explicit") == "sk-ant-explicit"
 
-    def test_missing_key_raises(self, tmp_path):
-        mall = KnowledgeMall()
-        with pytest.raises(KeyError):
-            mall['nope']
-
-    def test_repr(self, tmp_path):
-        s = LocalFiles(str(tmp_path))
-        mall = KnowledgeMall(staging=s)
-        assert 'KnowledgeMall' in repr(mall)
-
-    def test_dict_constructor(self, tmp_path):
-        s = LocalFiles(str(tmp_path))
-        mall = KnowledgeMall({'staging': s})
-        assert mall['staging'] is s
+    def test_raises_when_nothing_found(self, monkeypatch):
+        monkeypatch.delenv("CLAUDE_SESSION_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="Could not find a valid Claude session key"):
+            _resolve_claude_session_key()
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +175,12 @@ class TestClaudeProjectsImportError:
         try:
             import claudesync  # noqa: F401
 
-            pytest.skip('claudesync is installed')
+            pytest.skip("claudesync is installed")
         except ImportError:
             pass
 
         from aikb import ClaudeProjectsProvider
 
-        provider = ClaudeProjectsProvider(session_key='fake')
-        with pytest.raises(ImportError, match='pip install aikb'):
+        provider = ClaudeProjectsProvider(session_key="fake")
+        with pytest.raises(ImportError, match="pip install aikb"):
             provider._client

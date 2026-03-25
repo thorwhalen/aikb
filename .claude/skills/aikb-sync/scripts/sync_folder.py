@@ -17,7 +17,6 @@ Examples:
 from __future__ import annotations
 
 import fnmatch
-import sys
 
 
 def sync_folder(
@@ -33,9 +32,9 @@ def sync_folder(
 
     Returns a dict summarizing what was (or would be) done.
     """
-    from aikb import LocalFiles, ClaudeProject
+    from aikb import LocalKb, ClaudeProject
 
-    local = LocalFiles(local_dir, project_id="default")
+    local = LocalKb(local_dir, project_id="default")
     remote = ClaudeProject(project_id, session_key=session_key)
 
     local_files = set(local)

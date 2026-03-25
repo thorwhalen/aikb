@@ -12,9 +12,9 @@ Use this skill when syncing, mirroring, or batch-managing knowledge files across
 ### Push local files to Claude Project
 
 ```python
-from aikb import LocalFiles, ClaudeProject
+from aikb import LocalKb, ClaudeProject
 
-local = LocalFiles('/path/to/docs')
+local = LocalKb('/path/to/docs')
 remote = ClaudeProject('project-uuid')
 
 # Push all files
@@ -86,14 +86,10 @@ python .claude/skills/aikb-sync/scripts/sync_folder.py \
 
 ## Workflow: Keep Claude Project in sync with a repo folder
 
-A common pattern is keeping a `docs/` or `knowledge/` folder in your repo
-synced with a Claude Project:
-
 ```python
-from pathlib import Path
-from aikb import LocalFiles, ClaudeProject
+from aikb import LocalKb, ClaudeProject
 
-local = LocalFiles('knowledge')  # ./knowledge/default/
+local = LocalKb('knowledge')
 remote = ClaudeProject('project-uuid')
 
 # Full bidirectional diff
@@ -116,18 +112,13 @@ for f in removed:
     del remote[f]
 ```
 
-## Using KnowledgeMall for named sync pairs
+## Using ClaudeProjects for discovery
 
 ```python
-from aikb import LocalFiles, ClaudeProject, KnowledgeMall
+from aikb import ClaudeProjects
 
-mall = KnowledgeMall(
-    staging=LocalFiles('/tmp/staging'),
-    prod=ClaudeProject('project-uuid'),
-)
-
-# Draft locally, review, then push
-mall['staging']['notes.md'] = '# Updated notes\n...'
-print(mall['staging']['notes.md'])  # review
-mall['prod']['notes.md'] = mall['staging']['notes.md']  # push
+projects = ClaudeProjects()
+for name in projects:
+    files = projects[name]
+    print(f"{name}: {list(files)}")
 ```

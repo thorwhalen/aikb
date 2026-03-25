@@ -13,7 +13,8 @@ aikb has three layers:
 
 1. **Provider protocol** (`KnowledgeBaseProvider`) — structural typing via `Protocol`
 2. **Store facade** (`KnowledgeFiles`) — `MutableMapping` wrapping any provider
-3. **Factory functions** (`LocalFiles`, `ClaudeProject`) — progressive disclosure entry points
+3. **Factory functions** (`LocalKb`, `ClaudeProject`) — progressive disclosure entry points
+4. **Collection mappings** (`ClaudeProjects`) — `Mapping` of names → `KnowledgeFiles`
 
 All core code lives in `aikb/base.py`. The MCP server is in `aikb/mcp_server.py`.
 
@@ -21,7 +22,7 @@ All core code lives in `aikb/base.py`. The MCP server is in `aikb/mcp_server.py`
 
 | File | Purpose |
 |------|---------|
-| `aikb/base.py` | Protocol, KnowledgeFiles, all providers, KnowledgeMall, factories |
+| `aikb/base.py` | Protocol, KnowledgeFiles, all providers, ClaudeProjects, factories, helpers |
 | `aikb/__init__.py` | Public API exports only |
 | `aikb/mcp_server.py` | FastMCP server (gated behind `aikb[mcp]`) |
 | `tests/test_aikb.py` | pytest suite |
@@ -56,19 +57,22 @@ def NewPlatform(project_id: str, *, ...) -> KnowledgeFiles:
     return KnowledgeFiles(NewPlatformProvider(...), project_id=project_id)
 ```
 
-3. Export from `aikb/__init__.py`.
-4. Add to the `_get_store` dispatch in `aikb/mcp_server.py`.
-5. Add optional dep group in `pyproject.toml` if needed.
-6. Add tests in `tests/test_aikb.py`.
+3. Optionally add a collection Mapping (like `ClaudeProjects`) if the platform supports listing projects.
+
+4. Export from `aikb/__init__.py`.
+5. Add to the `_get_store` dispatch in `aikb/mcp_server.py`.
+6. Add optional dep group in `pyproject.toml` if needed.
+7. Add tests in `tests/test_aikb.py`.
 
 ## Design rules
 
 - **Provider methods raise `KeyError`** on missing files, not `FileNotFoundError`.
 - **`list_files` and `__iter__` yield** — never return lists.
 - **Optional deps are lazy-imported** at method-call time, not at module import. Use `_check_dependency()` to give informative install hints.
-- **`functools.cached_property`** for expensive client initialization (e.g., API clients).
+- **`functools.cached_property`** for expensive client initialization (e.g., API clients, org ID resolution).
 - **No inheritance required** for providers — the `KnowledgeBaseProvider` Protocol uses structural subtyping.
 - All arguments after the first positional MUST be keyword-only.
+- **Session key resolution** is handled by `_resolve_claude_session_key()` — don't duplicate this logic.
 
 ## Testing
 
@@ -80,13 +84,11 @@ pytest --doctest-modules aikb/  # doctests
 - `LocalFilesProvider` tests use the `tmp_path` fixture (no cleanup needed).
 - Provider tests for external platforms use `pytest.importorskip()`.
 - Integration tests requiring real credentials should be marked `@pytest.mark.integration`.
-
-## Extending KnowledgeMall
-
-`KnowledgeMall` is a `Mapping[str, KnowledgeFiles]`. To add declarative config-based construction, add a `@classmethod` factory. Keep the constructor signature simple: `KnowledgeMall(dict_or_kwargs)`.
+- Use `monkeypatch.setenv` / `monkeypatch.delenv` for env var tests.
 
 ## MCP server
 
 The MCP server is a thin dispatch layer. When adding a new platform:
 1. Add an `elif` branch to `_get_store()` in `mcp_server.py`
 2. The tool functions themselves don't change — they delegate to `_get_store()`
+3. For `"local"` platform, the project string is used as `project_id` (subfolder under default dir)

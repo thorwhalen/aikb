@@ -1,10 +1,103 @@
 """Core module: protocols, stores, providers, and factory functions for aikb."""
 
+import datetime
+import os
 from collections.abc import Iterator, Mapping, MutableMapping
 from functools import cached_property
 from pathlib import Path
 from typing import Protocol, runtime_checkable
-import os
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _check_dependency(module_name: str, *, install_hint: str):
+    """Import *module_name* or raise an informative ``ImportError``."""
+    try:
+        return __import__(module_name)
+    except ImportError:
+        raise ImportError(
+            f"{module_name!r} is required but not installed. {install_hint}"
+        ) from None
+
+
+def _resolve_claude_session_key(session_key: str | None = None) -> str:
+    """Resolve a Claude session key from multiple sources.
+
+    Priority:
+    1. Explicit *session_key* parameter
+    2. ``CLAUDE_SESSION_KEY`` environment variable
+    3. ClaudeSync stored config (``~/.claudesync/``)
+    4. ``browser_cookie3`` (optional) — extract from browser cookies
+    5. Raise ``RuntimeError`` with instructions
+    """
+    # 1. Explicit parameter
+    if session_key:
+        return session_key
+
+    # 2. Environment variable
+    env_key = os.environ.get("CLAUDE_SESSION_KEY")
+    if env_key:
+        return env_key
+
+    # 3. ClaudeSync stored config
+    try:
+        from claudesync.configmanager import FileConfigManager, InMemoryConfigManager
+
+        config = InMemoryConfigManager()
+        config.load_from_file_config(FileConfigManager())
+        stored_key, _expiry = config.get_session_key("claude.ai")
+        if stored_key:
+            return stored_key
+    except Exception:
+        pass  # claudesync not installed or config missing
+
+    # 4. browser_cookie3 (optional)
+    try:
+        import browser_cookie3
+
+        for browser_fn in (browser_cookie3.chrome, browser_cookie3.firefox):
+            try:
+                cj = browser_fn(domain_name="claude.ai")
+                for cookie in cj:
+                    if cookie.name == "sessionKey" and cookie.value:
+                        return cookie.value
+            except Exception:
+                continue
+    except ImportError:
+        pass  # browser_cookie3 not installed
+
+    # 5. Nothing found — raise with instructions
+    raise RuntimeError(
+        "Could not find a valid Claude session key. Tried:\n"
+        "  1. Explicit session_key parameter\n"
+        "  2. CLAUDE_SESSION_KEY environment variable\n"
+        "  3. ClaudeSync stored config (~/.claudesync/)\n"
+        "  4. Browser cookies (requires: pip install aikb[cookies])\n"
+        "\n"
+        "To obtain your session key:\n"
+        "  1. Open https://claude.ai in your browser and log in\n"
+        "  2. Open Developer Tools (F12) → Application → Cookies\n"
+        "  3. Copy the value of the 'sessionKey' cookie (starts with 'sk-ant-')\n"
+        "  4. Then either:\n"
+        "     a. export CLAUDE_SESSION_KEY='sk-ant-...'\n"
+        "     b. Pass session_key='sk-ant-...' to ClaudeProject() or ClaudeProjects()\n"
+        "     c. Run 'pip install claudesync && claudesync auth login'\n"
+    )
+
+
+def _make_claude_config(session_key: str):
+    """Create a ClaudeSync ``InMemoryConfigManager`` with the given session key."""
+    from claudesync.configmanager import InMemoryConfigManager
+
+    config = InMemoryConfigManager()
+    # Use naive datetime — InMemoryConfigManager.get_session_key compares
+    # with datetime.now() (naive), not datetime.now(utc).
+    expiry = datetime.datetime.now() + datetime.timedelta(days=30)
+    config.set_session_key("claude.ai", session_key, expiry)
+    return config
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +132,7 @@ class KnowledgeFiles(MutableMapping):
     Keys are filenames (str), values are file contents (str).
 
     >>> import tempfile, os
-    >>> store = LocalFiles(tempfile.mkdtemp())
+    >>> store = LocalKb(tempfile.mkdtemp())
     >>> store['notes.md'] = '# Notes'
     >>> store['notes.md']
     '# Notes'
@@ -134,25 +227,16 @@ class LocalFilesProvider:
 # ---------------------------------------------------------------------------
 
 
-def _check_dependency(module_name: str, *, install_hint: str):
-    """Import *module_name* or raise an informative ``ImportError``."""
-    try:
-        return __import__(module_name)
-    except ImportError:
-        raise ImportError(
-            f"{module_name!r} is required but not installed. {install_hint}"
-        ) from None
-
-
 class ClaudeProjectsProvider:
     """Claude Projects provider wrapping ClaudeSync.
 
     Requires ``pip install aikb[claude]``.
 
-    Authentication priority:
+    Session key resolution priority:
     1. Explicit *session_key* parameter
     2. ``CLAUDE_SESSION_KEY`` environment variable
-    3. ClaudeSync's own stored config
+    3. ClaudeSync stored config (``~/.claudesync/``)
+    4. Browser cookies (requires ``pip install aikb[cookies]``)
     """
 
     def __init__(
@@ -161,7 +245,7 @@ class ClaudeProjectsProvider:
         *,
         organization_id: str | None = None,
     ):
-        self._session_key = session_key or os.environ.get("CLAUDE_SESSION_KEY")
+        self._session_key = session_key
         self._organization_id = organization_id
 
     @cached_property
@@ -172,81 +256,126 @@ class ClaudeProjectsProvider:
         )
         from claudesync.providers.claude_ai import ClaudeAIProvider
 
-        provider = ClaudeAIProvider(session_key=self._session_key)
+        session_key = _resolve_claude_session_key(self._session_key)
+        config = _make_claude_config(session_key)
+        return ClaudeAIProvider(config=config)
+
+    @cached_property
+    def _org_id(self) -> str:
+        """Auto-resolve organization ID."""
         if self._organization_id:
-            provider.organization_id = self._organization_id
-        return provider
+            return self._organization_id
+        orgs = self._client.get_organizations()
+        if not orgs:
+            raise RuntimeError("No organizations found for this session key.")
+        if len(orgs) == 1:
+            return orgs[0]["id"]
+        names = [f"  - {o['name']} ({o['id']})" for o in orgs]
+        raise RuntimeError(
+            "Multiple organizations found. Pass organization_id=...:\n"
+            + "\n".join(names)
+        )
 
     def list_files(self, project_id: str) -> Iterator[str]:
-        files = self._client.get_project_files(
-            self._organization_id or self._client.organization_id, project_id
-        )
+        files = self._client.list_files(self._org_id, project_id)
         for f in files:
             yield f["file_name"]
 
     def read_file(self, project_id: str, filename: str) -> str:
-        org_id = self._organization_id or self._client.organization_id
-        files = self._client.get_project_files(org_id, project_id)
+        files = self._client.list_files(self._org_id, project_id)
         for f in files:
             if f["file_name"] == filename:
                 return f["content"]
         raise KeyError(filename)
 
-    def upsert_file(self, project_id: str, filename: str, content: str) -> None:
-        org_id = self._organization_id or self._client.organization_id
-        self._client.upload_file(org_id, project_id, filename, content)
+    def upsert_file(
+        self, project_id: str, filename: str, content: str
+    ) -> None:
+        self._client.upload_file(self._org_id, project_id, filename, content)
 
     def delete_file(self, project_id: str, filename: str) -> None:
-        org_id = self._organization_id or self._client.organization_id
-        files = self._client.get_project_files(org_id, project_id)
+        files = self._client.list_files(self._org_id, project_id)
         for f in files:
             if f["file_name"] == filename:
-                self._client.delete_file(org_id, project_id, f["uuid"])
+                self._client.delete_file(self._org_id, project_id, f["uuid"])
                 return
         raise KeyError(filename)
 
 
 # ---------------------------------------------------------------------------
-# KnowledgeMall — store of stores
+# ClaudeProjects — Mapping of project names → KnowledgeFiles
 # ---------------------------------------------------------------------------
 
 
-class KnowledgeMall(Mapping):
-    """A read-only mapping of names to :class:`KnowledgeFiles` stores.
+class ClaudeProjects(Mapping):
+    """Read-only mapping of Claude project names to KnowledgeFiles stores.
 
-    Useful for multi-project or multi-platform workflows.
-
-    >>> import tempfile
-    >>> mall = KnowledgeMall(staging=LocalFiles(tempfile.mkdtemp()))
-    >>> list(mall)
-    ['staging']
-    >>> isinstance(mall['staging'], KnowledgeFiles)
-    True
+    >>> p = ClaudeProjects(session_key='sk-ant-...')  # doctest: +SKIP
+    >>> list(p)                                        # doctest: +SKIP
+    ['My Project', 'Another Project']
+    >>> files = p['My Project']                        # doctest: +SKIP
+    >>> list(files)                                    # doctest: +SKIP
+    ['context.md', 'notes.md']
     """
 
-    def __init__(self, stores: dict | None = None, /, **named_stores):
-        self._stores: dict[str, KnowledgeFiles] = {
-            **(stores or {}),
-            **named_stores,
-        }
+    def __init__(
+        self,
+        *,
+        session_key: str | None = None,
+        organization_id: str | None = None,
+        include_archived: bool = False,
+    ):
+        self._session_key = session_key
+        self._organization_id = organization_id
+        self._include_archived = include_archived
+
+    @cached_property
+    def _provider(self) -> ClaudeProjectsProvider:
+        return ClaudeProjectsProvider(
+            self._session_key,
+            organization_id=self._organization_id,
+        )
+
+    @cached_property
+    def _projects(self) -> dict[str, str]:
+        """Build {display_name: project_uuid}.
+
+        Duplicate names are disambiguated with a UUID prefix suffix.
+        """
+        raw = self._provider._client.get_projects(
+            self._provider._org_id, include_archived=self._include_archived
+        )
+        # Group by name to detect collisions
+        seen: dict[str, list[dict]] = {}
+        for p in raw:
+            seen.setdefault(p["name"], []).append(p)
+
+        result: dict[str, str] = {}
+        for name, entries in seen.items():
+            if len(entries) == 1:
+                result[name] = entries[0]["id"]
+            else:
+                for entry in entries:
+                    short_id = entry["id"][:8]
+                    result[f"{name} ({short_id})"] = entry["id"]
+        return result
 
     def __getitem__(self, name: str) -> KnowledgeFiles:
-        try:
-            return self._stores[name]
-        except KeyError:
+        if name not in self._projects:
             raise KeyError(
-                f"No store named {name!r}. Available: {list(self._stores)}"
-            ) from None
+                f"No project named {name!r}. Available: {list(self._projects)}"
+            )
+        project_id = self._projects[name]
+        return KnowledgeFiles(self._provider, project_id=project_id)
 
     def __iter__(self) -> Iterator[str]:
-        yield from self._stores
+        yield from self._projects
 
     def __len__(self) -> int:
-        return len(self._stores)
+        return len(self._projects)
 
     def __repr__(self) -> str:
-        names = list(self._stores)
-        return f"{type(self).__name__}({names})"
+        return f"{type(self).__name__}({list(self._projects)})"
 
 
 # ---------------------------------------------------------------------------
@@ -254,15 +383,32 @@ class KnowledgeMall(Mapping):
 # ---------------------------------------------------------------------------
 
 
-def LocalFiles(rootdir: str, *, project_id: str = "default") -> KnowledgeFiles:
+_DEFAULT_LOCAL_DIR = os.environ.get("AIKB_LOCAL_DIR") or str(
+    Path.home() / ".local" / "share" / "aikb" / "localkb_files"
+)
+
+
+def LocalKb(
+    rootdir: str | None = None,
+    *,
+    project_id: str = "default",
+) -> KnowledgeFiles:
     """Create a local filesystem knowledge store.
 
+    Files are stored in ``rootdir / project_id /``.
+    Defaults to ``~/.local/share/aikb/localkb_files/`` or the
+    ``AIKB_LOCAL_DIR`` environment variable.
+
     >>> import tempfile
-    >>> store = LocalFiles(tempfile.mkdtemp())
+    >>> store = LocalKb(tempfile.mkdtemp())
     >>> store['ideas.md'] = '# Ideas\\nFirst idea'
     >>> store['ideas.md']
     '# Ideas\\nFirst idea'
     """
+    if rootdir is None:
+        rootdir = os.environ.get("AIKB_LOCAL_DIR") or str(
+            Path.home() / ".local" / "share" / "aikb" / "localkb_files"
+        )
     return KnowledgeFiles(LocalFilesProvider(rootdir), project_id=project_id)
 
 
@@ -275,6 +421,9 @@ def ClaudeProject(
     """Create a Claude Project knowledge store.
 
     Requires ``pip install aikb[claude]``.
+
+    Session key is resolved automatically (env var, ClaudeSync config,
+    browser cookies). Pass *session_key* explicitly to override.
     """
     provider = ClaudeProjectsProvider(
         session_key=session_key,

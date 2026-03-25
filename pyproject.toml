@@ -43,6 +43,9 @@ Documentation = "https://thorwhalen.github.io/aikb"
 claude = [
     "claudesync",
 ]
+cookies = [
+    "browser_cookie3",
+]
 dol = [
     "dol",
 ]
@@ -51,6 +54,7 @@ mcp = [
 ]
 all = [
     "claudesync",
+    "browser_cookie3",
     "dol",
     "fastmcp",
 ]

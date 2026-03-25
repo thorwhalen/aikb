@@ -7,13 +7,13 @@ Run with::
     python -m aikb.mcp_server
 """
 
-from aikb.base import LocalFiles, ClaudeProject, _check_dependency
+from aikb.base import LocalKb, ClaudeProject, _check_dependency
 
 
 def _get_store(platform: str, project: str):
     """Return a KnowledgeFiles store for the given platform and project."""
     if platform == "local":
-        return LocalFiles(project)
+        return LocalKb(project_id=project)
     elif platform == "claude":
         return ClaudeProject(project)
     else:

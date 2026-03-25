@@ -9,7 +9,8 @@
 Three-layer design in `aikb/base.py`:
 - **Provider protocol** (`KnowledgeBaseProvider`) — structural typing, no inheritance
 - **Store facade** (`KnowledgeFiles`) — `collections.abc.MutableMapping`
-- **Factory functions** (`LocalFiles`, `ClaudeProject`) — progressive disclosure
+- **Factory functions** (`LocalKb`, `ClaudeProject`) — progressive disclosure
+- **Collection mapping** (`ClaudeProjects`) — `Mapping` of project names → `KnowledgeFiles`
 
 Optional `aikb/mcp_server.py` exposes CRUD as MCP tools.
 
@@ -25,6 +26,7 @@ Load the relevant skill when working in these areas:
 
 - Provider methods raise `KeyError` on missing files
 - `list_files` / `__iter__` yield (generators, not lists)
-- Optional deps (`claudesync`, `fastmcp`) are lazy-imported via `_check_dependency()`
+- Optional deps (`claudesync`, `fastmcp`, `browser_cookie3`) are lazy-imported via `_check_dependency()`
+- Session key resolution is automatic: explicit → env var → ClaudeSync config → browser cookies
 - All arguments after the first positional are keyword-only
-- Zero core dependencies — extras for `claude`, `mcp`, `dol`
+- Zero core dependencies — extras for `claude`, `cookies`, `mcp`, `dol`

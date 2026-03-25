@@ -11,9 +11,9 @@ To install:	`pip install aikb`
 ## Quick start
 
 ```python
-from aikb import LocalFiles
+from aikb import LocalKb
 
-store = LocalFiles('/tmp/my_kb')
+store = LocalKb()  # ~/.local/share/aikb/localkb_files/default/
 store['ideas.md'] = '# Ideas\nFirst idea'
 print(store['ideas.md'])
 list(store)          # ['ideas.md']
@@ -23,6 +23,13 @@ del store['ideas.md']
 Every store is a standard Python `MutableMapping` (dict-like), so `len()`,
 `in`, `.keys()`, `.values()`, `.items()`, and `.update()` all work.
 
+Override the default directory with a path or the `AIKB_LOCAL_DIR` env var:
+
+```python
+store = LocalKb('/path/to/my/knowledge')
+store = LocalKb(project_id='research')  # subfolder under default dir
+```
+
 ## Claude Projects
 
 Manage knowledge files in Claude.ai Projects programmatically:
@@ -31,44 +38,56 @@ Manage knowledge files in Claude.ai Projects programmatically:
 pip install aikb[claude]
 ```
 
+### Browse all your projects
+
+```python
+from aikb import ClaudeProjects
+
+projects = ClaudeProjects()
+list(projects)                  # ['My Project', 'Another Project', ...]
+files = projects['My Project']  # returns a dict-like store
+list(files)                     # ['context.md', 'notes.md']
+print(files['context.md'])
+```
+
+### Direct access by project UUID
+
 ```python
 from aikb import ClaudeProject
 
-store = ClaudeProject('your-project-uuid', session_key='sk-ant-...')
-
-# List existing files
-list(store)
-
-# Add or update a file
+store = ClaudeProject('your-project-uuid')
 store['context.md'] = '# Project context\n...'
-
-# Read a file
 print(store['context.md'])
-
-# Delete a file
 del store['context.md']
 ```
 
-Authentication priority:
+### Getting your session key
+
+aikb automatically looks for a Claude session key in this order:
+
 1. Explicit `session_key` parameter
 2. `CLAUDE_SESSION_KEY` environment variable
-3. ClaudeSync's stored config
+3. ClaudeSync stored credentials (`~/.claudesync/`)
+4. Browser cookies (requires `pip install aikb[cookies]`)
 
-## Multi-project workflows (Mall)
+If none are found, you'll get a helpful error with instructions.
 
-Use `KnowledgeMall` to manage multiple projects or platforms at once:
+**To get your session key manually:**
 
-```python
-from aikb import LocalFiles, ClaudeProject, KnowledgeMall
+1. Open https://claude.ai and log in
+2. Open Developer Tools (F12) → Application → Cookies
+3. Copy the value of the `sessionKey` cookie (starts with `sk-ant-`)
+4. Set it:
 
-mall = KnowledgeMall(
-    staging=LocalFiles('/tmp/staging'),
-    prod=ClaudeProject('project-uuid', session_key='sk-ant-...'),
-)
+```bash
+export CLAUDE_SESSION_KEY='sk-ant-sid01-...'
+```
 
-# Draft locally, then push to Claude
-mall['staging']['notes.md'] = '# Notes\nDraft content'
-mall['prod']['notes.md'] = mall['staging']['notes.md']
+Or use [ClaudeSync](https://github.com/jahwag/ClaudeSync) to store credentials:
+
+```bash
+pip install claudesync
+claudesync auth login
 ```
 
 ## Custom providers
@@ -111,10 +130,10 @@ pip install aikb[dol]
 
 ```python
 from dol import wrap_kvs
-from aikb import LocalFiles
+from aikb import LocalKb
 
 store = wrap_kvs(
-    LocalFiles('/tmp/kb'),
+    LocalKb('/tmp/kb'),
     obj_of_data=lambda s: s.upper(),  # transforms on read
 )
 ```
@@ -124,6 +143,7 @@ store = wrap_kvs(
 | Extra | Install | Provides |
 |-------|---------|----------|
 | `claude` | `pip install aikb[claude]` | Claude Projects via ClaudeSync |
+| `cookies` | `pip install aikb[cookies]` | Auto-extract session keys from browser |
 | `mcp` | `pip install aikb[mcp]` | FastMCP server |
 | `dol` | `pip install aikb[dol]` | dol store transforms |
 | `all` | `pip install aikb[all]` | Everything |

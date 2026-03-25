@@ -5,7 +5,7 @@ from aikb.base import (
     KnowledgeBaseProvider,
     LocalFilesProvider,
     ClaudeProjectsProvider,
-    LocalFiles,
+    ClaudeProjects,
+    LocalKb,
     ClaudeProject,
-    KnowledgeMall,
 )
