@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aikb"
-version = "0.0.1"
+version = "0.0.2"
 description = "Programmatic CRUD for AI project knowledge bases (Claude Projects, Gemini Gems)"
 readme = "README.md"
 requires-python = ">=3.10"

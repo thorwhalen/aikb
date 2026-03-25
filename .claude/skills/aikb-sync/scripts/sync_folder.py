@@ -35,7 +35,7 @@ def sync_folder(
     """
     from aikb import LocalFiles, ClaudeProject
 
-    local = LocalFiles(local_dir, project_id='default')
+    local = LocalFiles(local_dir, project_id="default")
     remote = ClaudeProject(project_id, session_key=session_key)
 
     local_files = set(local)
@@ -51,33 +51,33 @@ def sync_folder(
     unchanged = common - to_update
 
     summary = {
-        'add': sorted(to_add),
-        'update': sorted(to_update),
-        'remove': sorted(to_remove),
-        'unchanged': sorted(unchanged),
+        "add": sorted(to_add),
+        "update": sorted(to_update),
+        "remove": sorted(to_remove),
+        "unchanged": sorted(unchanged),
     }
 
     if dry_run:
-        print('=== DRY RUN ===')
+        print("=== DRY RUN ===")
         for action, files in summary.items():
             if files:
-                print(f'\n{action.upper()} ({len(files)}):')
+                print(f"\n{action.upper()} ({len(files)}):")
                 for f in files:
-                    print(f'  {f}')
-        if not any(summary[k] for k in ('add', 'update', 'remove')):
-            print('\nNothing to do — already in sync.')
+                    print(f"  {f}")
+        if not any(summary[k] for k in ("add", "update", "remove")):
+            print("\nNothing to do — already in sync.")
         return summary
 
     for f in to_add | to_update:
-        print(f'  {"ADD" if f in to_add else "UPD"} {f}')
+        print(f"  {'ADD' if f in to_add else 'UPD'} {f}")
         remote[f] = local[f]
 
     for f in to_remove:
-        print(f'  DEL {f}')
+        print(f"  DEL {f}")
         del remote[f]
 
     total = len(to_add) + len(to_update) + len(to_remove)
-    print(f'\nDone: {total} change(s) applied.')
+    print(f"\nDone: {total} change(s) applied.")
     return summary
 
 
@@ -85,17 +85,19 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Sync a local folder to a Claude Project knowledge base.'
+        description="Sync a local folder to a Claude Project knowledge base."
     )
-    parser.add_argument('local_dir', help='Path to local folder')
-    parser.add_argument('project_id', help='Claude Project UUID')
-    parser.add_argument('--session-key', help='Claude session key')
-    parser.add_argument('--glob', dest='glob_pattern', help='Filter files by glob pattern')
-    parser.add_argument('--dry-run', action='store_true', help='Show what would change')
+    parser.add_argument("local_dir", help="Path to local folder")
+    parser.add_argument("project_id", help="Claude Project UUID")
+    parser.add_argument("--session-key", help="Claude session key")
     parser.add_argument(
-        '--delete-remote-extras',
-        action='store_true',
-        help='Delete remote files not present locally',
+        "--glob", dest="glob_pattern", help="Filter files by glob pattern"
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Show what would change")
+    parser.add_argument(
+        "--delete-remote-extras",
+        action="store_true",
+        help="Delete remote files not present locally",
     )
     args = parser.parse_args()
 
@@ -109,5 +111,5 @@ def main():
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

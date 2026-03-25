@@ -12,24 +12,20 @@ from aikb.base import LocalFiles, ClaudeProject, _check_dependency
 
 def _get_store(platform: str, project: str):
     """Return a KnowledgeFiles store for the given platform and project."""
-    if platform == 'local':
+    if platform == "local":
         return LocalFiles(project)
-    elif platform == 'claude':
+    elif platform == "claude":
         return ClaudeProject(project)
     else:
-        raise ValueError(
-            f"Unknown platform {platform!r}. Supported: 'local', 'claude'"
-        )
+        raise ValueError(f"Unknown platform {platform!r}. Supported: 'local', 'claude'")
 
 
 def create_server():
     """Create and return the FastMCP server instance."""
-    _check_dependency(
-        'fastmcp', install_hint='Install with: pip install aikb[mcp]'
-    )
+    _check_dependency("fastmcp", install_hint="Install with: pip install aikb[mcp]")
     from fastmcp import FastMCP
 
-    mcp = FastMCP('aikb')
+    mcp = FastMCP("aikb")
 
     @mcp.tool()
     def list_files(platform: str, project: str) -> list[str]:
@@ -44,17 +40,15 @@ def create_server():
         return store[filename]
 
     @mcp.tool()
-    def write_file(
-        platform: str, project: str, filename: str, content: str
-    ) -> dict:
+    def write_file(platform: str, project: str, filename: str, content: str) -> dict:
         """Create or update a knowledge file."""
         store = _get_store(platform, project)
         store[filename] = content
         return {
-            'status': 'ok',
-            'platform': platform,
-            'project': project,
-            'file': filename,
+            "status": "ok",
+            "platform": platform,
+            "project": project,
+            "file": filename,
         }
 
     @mcp.tool()
@@ -63,15 +57,15 @@ def create_server():
         store = _get_store(platform, project)
         del store[filename]
         return {
-            'status': 'ok',
-            'platform': platform,
-            'project': project,
-            'file': filename,
+            "status": "ok",
+            "platform": platform,
+            "project": project,
+            "file": filename,
         }
 
     return mcp
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     server = create_server()
     server.run()

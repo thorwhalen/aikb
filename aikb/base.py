@@ -23,9 +23,7 @@ class KnowledgeBaseProvider(Protocol):
 
     def read_file(self, project_id: str, filename: str) -> str: ...
 
-    def upsert_file(
-        self, project_id: str, filename: str, content: str
-    ) -> None: ...
+    def upsert_file(self, project_id: str, filename: str, content: str) -> None: ...
 
     def delete_file(self, project_id: str, filename: str) -> None: ...
 
@@ -80,7 +78,9 @@ class KnowledgeFiles(MutableMapping):
 
     def __repr__(self) -> str:
         provider_name = type(self._provider).__name__
-        return f"{type(self).__name__}({provider_name}, project_id={self._project_id!r})"
+        return (
+            f"{type(self).__name__}({provider_name}, project_id={self._project_id!r})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -116,13 +116,11 @@ class LocalFilesProvider:
         path = self._project_dir(project_id) / filename
         if not path.is_file():
             raise KeyError(filename)
-        return path.read_text(encoding='utf-8')
+        return path.read_text(encoding="utf-8")
 
-    def upsert_file(
-        self, project_id: str, filename: str, content: str
-    ) -> None:
+    def upsert_file(self, project_id: str, filename: str, content: str) -> None:
         path = self._project_dir(project_id) / filename
-        path.write_text(content, encoding='utf-8')
+        path.write_text(content, encoding="utf-8")
 
     def delete_file(self, project_id: str, filename: str) -> None:
         path = self._project_dir(project_id) / filename
@@ -163,14 +161,14 @@ class ClaudeProjectsProvider:
         *,
         organization_id: str | None = None,
     ):
-        self._session_key = session_key or os.environ.get('CLAUDE_SESSION_KEY')
+        self._session_key = session_key or os.environ.get("CLAUDE_SESSION_KEY")
         self._organization_id = organization_id
 
     @cached_property
     def _client(self):
         _check_dependency(
-            'claudesync',
-            install_hint='Install with: pip install aikb[claude]',
+            "claudesync",
+            install_hint="Install with: pip install aikb[claude]",
         )
         from claudesync.providers.claude_ai import ClaudeAIProvider
 
@@ -184,19 +182,17 @@ class ClaudeProjectsProvider:
             self._organization_id or self._client.organization_id, project_id
         )
         for f in files:
-            yield f['file_name']
+            yield f["file_name"]
 
     def read_file(self, project_id: str, filename: str) -> str:
         org_id = self._organization_id or self._client.organization_id
         files = self._client.get_project_files(org_id, project_id)
         for f in files:
-            if f['file_name'] == filename:
-                return f['content']
+            if f["file_name"] == filename:
+                return f["content"]
         raise KeyError(filename)
 
-    def upsert_file(
-        self, project_id: str, filename: str, content: str
-    ) -> None:
+    def upsert_file(self, project_id: str, filename: str, content: str) -> None:
         org_id = self._organization_id or self._client.organization_id
         self._client.upload_file(org_id, project_id, filename, content)
 
@@ -204,8 +200,8 @@ class ClaudeProjectsProvider:
         org_id = self._organization_id or self._client.organization_id
         files = self._client.get_project_files(org_id, project_id)
         for f in files:
-            if f['file_name'] == filename:
-                self._client.delete_file(org_id, project_id, f['uuid'])
+            if f["file_name"] == filename:
+                self._client.delete_file(org_id, project_id, f["uuid"])
                 return
         raise KeyError(filename)
 
@@ -258,7 +254,7 @@ class KnowledgeMall(Mapping):
 # ---------------------------------------------------------------------------
 
 
-def LocalFiles(rootdir: str, *, project_id: str = 'default') -> KnowledgeFiles:
+def LocalFiles(rootdir: str, *, project_id: str = "default") -> KnowledgeFiles:
     """Create a local filesystem knowledge store.
 
     >>> import tempfile
