@@ -9,3 +9,17 @@ from aikb.base import (
     LocalKb,
     ClaudeProject,
 )
+from aikb.sync import (
+    status,
+    push,
+    pull,
+    sync,
+    clone,
+    snapshot,
+    reconcile,
+    content_hash,
+    SyncAction,
+    ActionType,
+    ConflictPolicy,
+    SyncConflictError,
+)

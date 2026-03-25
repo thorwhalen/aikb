@@ -90,6 +90,63 @@ pip install claudesync
 claudesync auth login
 ```
 
+## Syncing stores
+
+aikb includes a sync engine that works with any two `MutableMapping` stores — plain dicts, `LocalKb`, `ClaudeProject`, or any custom store.
+
+### Push / Pull (one-directional)
+
+```python
+from aikb import LocalKb, ClaudeProject, push, pull
+
+local = LocalKb('/path/to/docs')
+remote = ClaudeProject('project-uuid')
+
+push(local, remote)                # local → remote (source wins)
+push(local, remote, delete=True)   # also remove remote files not in local
+pull(local, remote)                # remote → local
+```
+
+### Bidirectional sync (three-way reconciliation)
+
+```python
+from aikb import sync, clone
+
+# First time: clone to establish a manifest (baseline)
+clone(local, remote, manifest_path='.aikb/manifest.json')
+
+# Later: bidirectional sync detects who changed what
+sync(local, remote, manifest_path='.aikb/manifest.json')
+```
+
+### Status (dry run)
+
+```python
+from aikb import status
+
+for action in status(local, remote):
+    print(f"{action.action.value:8s} {action.direction:10s} {action.filename}")
+```
+
+### Conflict resolution
+
+```python
+from aikb import sync, ConflictPolicy
+
+sync(a, b, manifest=m, on_conflict=ConflictPolicy.A_WINS)   # local wins
+sync(a, b, manifest=m, on_conflict=ConflictPolicy.SKIP)     # skip conflicts
+sync(a, b, manifest=m, on_conflict=my_resolver_function)    # custom callable
+```
+
+Works with plain dicts too — no aikb stores required:
+
+```python
+from aikb import push
+src = {"readme.md": "# Hello", "notes.md": "..."}
+tgt = {}
+push(src, tgt)  # tgt is now a copy of src
+```
+
 ## Custom providers
 
 Implement the `KnowledgeBaseProvider` protocol to add new backends:

@@ -6,11 +6,17 @@
 
 ## Architecture
 
-Three-layer design in `aikb/base.py`:
+**`aikb/base.py`** — CRUD layer:
 - **Provider protocol** (`KnowledgeBaseProvider`) — structural typing, no inheritance
 - **Store facade** (`KnowledgeFiles`) — `collections.abc.MutableMapping`
 - **Factory functions** (`LocalKb`, `ClaudeProject`) — progressive disclosure
 - **Collection mapping** (`ClaudeProjects`) — `Mapping` of project names → `KnowledgeFiles`
+
+**`aikb/sync.py`** — Sync engine (stdlib only, decoupled from base.py):
+- Operates on any two `MutableMapping` instances
+- `push()`, `pull()`, `clone()`, `sync()`, `status()` — git-inspired operations
+- Three-way reconciliation with manifest for bidirectional sync
+- Conflict detection with pluggable resolution (`ConflictPolicy` enum or callable)
 
 Optional `aikb/mcp_server.py` exposes CRUD as MCP tools.
 

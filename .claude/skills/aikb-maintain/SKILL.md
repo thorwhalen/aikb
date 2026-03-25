@@ -9,23 +9,40 @@ Use this skill when modifying or extending the aikb package itself.
 
 ## Architecture
 
-aikb has three layers:
+aikb has two main modules:
+
+### `aikb/base.py` — CRUD layer
 
 1. **Provider protocol** (`KnowledgeBaseProvider`) — structural typing via `Protocol`
 2. **Store facade** (`KnowledgeFiles`) — `MutableMapping` wrapping any provider
 3. **Factory functions** (`LocalKb`, `ClaudeProject`) — progressive disclosure entry points
 4. **Collection mappings** (`ClaudeProjects`) — `Mapping` of names → `KnowledgeFiles`
 
-All core code lives in `aikb/base.py`. The MCP server is in `aikb/mcp_server.py`.
+### `aikb/sync.py` — Sync engine
+
+Operates on any two `MutableMapping` instances (not coupled to base.py):
+
+- **Hashing**: `content_hash()`, `snapshot()` — compute `{filename: hash}` from any store
+- **Reconciliation**: `reconcile()` — three-way (with manifest) or two-way diff algorithm
+- **Conflict resolution**: `resolve_conflicts()` with `ConflictPolicy` enum or custom callable
+- **Propagation**: `propagate()` — execute classified actions against stores
+- **High-level ops**: `push()`, `pull()`, `clone()`, `sync()`, `status()`
+- **Manifest I/O**: `load_manifest()`, `save_manifest()` — JSON persistence
+
+### `aikb/mcp_server.py` — MCP tools
+
+FastMCP server exposing CRUD as tools (gated behind `aikb[mcp]`).
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
 | `aikb/base.py` | Protocol, KnowledgeFiles, all providers, ClaudeProjects, factories, helpers |
+| `aikb/sync.py` | Sync engine: reconcile, push, pull, clone, sync, status, manifest I/O |
 | `aikb/__init__.py` | Public API exports only |
 | `aikb/mcp_server.py` | FastMCP server (gated behind `aikb[mcp]`) |
-| `tests/test_aikb.py` | pytest suite |
+| `tests/test_aikb.py` | pytest suite for base.py |
+| `tests/test_sync.py` | pytest suite for sync.py (all 7 reconciliation cases, propagation, high-level ops) |
 | `pyproject.toml` | Build config, optional deps groups |
 
 ## Adding a new provider
@@ -64,6 +81,8 @@ def NewPlatform(project_id: str, *, ...) -> KnowledgeFiles:
 6. Add optional dep group in `pyproject.toml` if needed.
 7. Add tests in `tests/test_aikb.py`.
 
+The new provider automatically works with all sync functions — `push()`, `pull()`, `sync()`, etc. — since they operate on any `MutableMapping`.
+
 ## Design rules
 
 - **Provider methods raise `KeyError`** on missing files, not `FileNotFoundError`.
@@ -73,15 +92,19 @@ def NewPlatform(project_id: str, *, ...) -> KnowledgeFiles:
 - **No inheritance required** for providers — the `KnowledgeBaseProvider` Protocol uses structural subtyping.
 - All arguments after the first positional MUST be keyword-only.
 - **Session key resolution** is handled by `_resolve_claude_session_key()` — don't duplicate this logic.
+- **Sync engine is decoupled** from stores — `aikb/sync.py` only depends on `MutableMapping`, never imports `aikb/base.py`.
 
 ## Testing
 
 ```bash
-pytest tests/ -v               # unit tests
+pytest tests/ -v               # all tests
+pytest tests/test_sync.py -v   # sync tests only
 pytest --doctest-modules aikb/  # doctests
 ```
 
 - `LocalFilesProvider` tests use the `tmp_path` fixture (no cleanup needed).
+- Sync tests use plain `dict` as the primary store (fast, no I/O).
+- Integration tests with `LocalKb` verify sync works with real stores.
 - Provider tests for external platforms use `pytest.importorskip()`.
 - Integration tests requiring real credentials should be marked `@pytest.mark.integration`.
 - Use `monkeypatch.setenv` / `monkeypatch.delenv` for env var tests.
