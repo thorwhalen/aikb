@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>aikb.base &mdash; aikb 0.0.1 documentation</title>
+  <title>aikb.base &mdash; aikb 0.0.2 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
@@ -15,7 +15,7 @@
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="../../_static/documentation_options.js?v=e3a6060d"></script>
       <script src="../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="../../_static/toggleprompt.js?v=d7ede5d2"></script>
@@ -52,12 +52,12 @@
 <li class="toctree-l1"><a class="reference internal" href="../aikb.html">aikb</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">aikb.base</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#aikb.base.ClaudeProject"><code class="docutils literal notranslate"><span class="pre">ClaudeProject()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#aikb.base.ClaudeProjects"><code class="docutils literal notranslate"><span class="pre">ClaudeProjects</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#aikb.base.ClaudeProjectsProvider"><code class="docutils literal notranslate"><span class="pre">ClaudeProjectsProvider</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#aikb.base.KnowledgeBaseProvider"><code class="docutils literal notranslate"><span class="pre">KnowledgeBaseProvider</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#aikb.base.KnowledgeFiles"><code class="docutils literal notranslate"><span class="pre">KnowledgeFiles</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#aikb.base.KnowledgeMall"><code class="docutils literal notranslate"><span class="pre">KnowledgeMall</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#aikb.base.LocalFiles"><code class="docutils literal notranslate"><span class="pre">LocalFiles()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#aikb.base.LocalFilesProvider"><code class="docutils literal notranslate"><span class="pre">LocalFilesProvider</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#aikb.base.LocalKb"><code class="docutils literal notranslate"><span class="pre">LocalKb()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="mcp_server.html">aikb.mcp_server</a></li>
@@ -95,6 +95,22 @@
 <span class="sig-prename descclassname"><span class="pre">aikb.base.</span></span><span class="sig-name descname"><span class="pre">ClaudeProject</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">project_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">session_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">organization_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#aikb.base.KnowledgeFiles" title="aikb.base.KnowledgeFiles"><span class="pre">KnowledgeFiles</span></a></span></span><a class="reference internal" href="../../_modules/aikb/base.html#ClaudeProject"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aikb.base.ClaudeProject" title="Link to this definition"></a></dt>
 <dd><p>Create a Claude Project knowledge store.</p>
 <p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">aikb[claude]</span></code>.</p>
+<p>Session key is resolved automatically (env var, ClaudeSync config,
+browser cookies). Pass <em>session_key</em> explicitly to override.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="aikb.base.ClaudeProjects">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">aikb.base.</span></span><span class="sig-name descname"><span class="pre">ClaudeProjects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">session_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">organization_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_archived</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/aikb/base.html#ClaudeProjects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aikb.base.ClaudeProjects" title="Link to this definition"></a></dt>
+<dd><p>Read-only mapping of Claude project names to KnowledgeFiles stores.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="n">ClaudeProjects</span><span class="p">(</span><span class="n">session_key</span><span class="o">=</span><span class="s1">&#39;sk-ant-...&#39;</span><span class="p">)</span>  
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">list</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>                                        
+<span class="go">[&#39;My Project&#39;, &#39;Another Project&#39;]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">files</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;My Project&#39;</span><span class="p">]</span>                        
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">list</span><span class="p">(</span><span class="n">files</span><span class="p">)</span>                                    
+<span class="go">[&#39;context.md&#39;, &#39;notes.md&#39;]</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py class">
@@ -102,10 +118,11 @@
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">aikb.base.</span></span><span class="sig-name descname"><span class="pre">ClaudeProjectsProvider</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">session_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">organization_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/aikb/base.html#ClaudeProjectsProvider"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aikb.base.ClaudeProjectsProvider" title="Link to this definition"></a></dt>
 <dd><p>Claude Projects provider wrapping ClaudeSync.</p>
 <p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">aikb[claude]</span></code>.</p>
-<p>Authentication priority:
+<p>Session key resolution priority:
 1. Explicit <em>session_key</em> parameter
 2. <code class="docutils literal notranslate"><span class="pre">CLAUDE_SESSION_KEY</span></code> environment variable
-3. ClaudeSync’s own stored config</p>
+3. ClaudeSync stored config (<code class="docutils literal notranslate"><span class="pre">~/.claudesync/</span></code>)
+4. Browser cookies (requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">aikb[cookies]</span></code>)</p>
 </dd></dl>
 
 <dl class="py class">
@@ -121,7 +138,7 @@
 <dd><p>Dict-like access to knowledge files in an AI project.</p>
 <p>Keys are filenames (str), values are file contents (str).</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span> <span class="o">=</span> <span class="n">LocalFiles</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span> <span class="o">=</span> <span class="n">LocalKb</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">store</span><span class="p">[</span><span class="s1">&#39;notes.md&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;# Notes&#39;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">store</span><span class="p">[</span><span class="s1">&#39;notes.md&#39;</span><span class="p">]</span>
 <span class="go">&#39;# Notes&#39;</span>
@@ -137,39 +154,27 @@
 </dd></dl>
 
 <dl class="py class">
-<dt class="sig sig-object py" id="aikb.base.KnowledgeMall">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">aikb.base.</span></span><span class="sig-name descname"><span class="pre">KnowledgeMall</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stores</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">/</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">named_stores</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/aikb/base.html#KnowledgeMall"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aikb.base.KnowledgeMall" title="Link to this definition"></a></dt>
-<dd><p>A read-only mapping of names to <a class="reference internal" href="#aikb.base.KnowledgeFiles" title="aikb.base.KnowledgeFiles"><code class="xref py py-class docutils literal notranslate"><span class="pre">KnowledgeFiles</span></code></a> stores.</p>
-<p>Useful for multi-project or multi-platform workflows.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">mall</span> <span class="o">=</span> <span class="n">KnowledgeMall</span><span class="p">(</span><span class="n">staging</span><span class="o">=</span><span class="n">LocalFiles</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">()))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">list</span><span class="p">(</span><span class="n">mall</span><span class="p">)</span>
-<span class="go">[&#39;staging&#39;]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">mall</span><span class="p">[</span><span class="s1">&#39;staging&#39;</span><span class="p">],</span> <span class="n">KnowledgeFiles</span><span class="p">)</span>
-<span class="go">True</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="aikb.base.LocalFiles">
-<span class="sig-prename descclassname"><span class="pre">aikb.base.</span></span><span class="sig-name descname"><span class="pre">LocalFiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rootdir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'default'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#aikb.base.KnowledgeFiles" title="aikb.base.KnowledgeFiles"><span class="pre">KnowledgeFiles</span></a></span></span><a class="reference internal" href="../../_modules/aikb/base.html#LocalFiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aikb.base.LocalFiles" title="Link to this definition"></a></dt>
-<dd><p>Create a local filesystem knowledge store.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span> <span class="o">=</span> <span class="n">LocalFiles</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span><span class="p">[</span><span class="s1">&#39;ideas.md&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;# Ideas</span><span class="se">\n</span><span class="s1">First idea&#39;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span><span class="p">[</span><span class="s1">&#39;ideas.md&#39;</span><span class="p">]</span>
-<span class="go">&#39;# Ideas\nFirst idea&#39;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py class">
 <dt class="sig sig-object py" id="aikb.base.LocalFilesProvider">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">aikb.base.</span></span><span class="sig-name descname"><span class="pre">LocalFilesProvider</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rootdir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">create_dirs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/aikb/base.html#LocalFilesProvider"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aikb.base.LocalFilesProvider" title="Link to this definition"></a></dt>
 <dd><p>Local filesystem provider for knowledge files.</p>
 <p>Each <code class="docutils literal notranslate"><span class="pre">project_id</span></code> maps to a subdirectory under <em>rootdir</em>.
 Files are stored as UTF-8 text.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="aikb.base.LocalKb">
+<span class="sig-prename descclassname"><span class="pre">aikb.base.</span></span><span class="sig-name descname"><span class="pre">LocalKb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rootdir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'default'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#aikb.base.KnowledgeFiles" title="aikb.base.KnowledgeFiles"><span class="pre">KnowledgeFiles</span></a></span></span><a class="reference internal" href="../../_modules/aikb/base.html#LocalKb"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aikb.base.LocalKb" title="Link to this definition"></a></dt>
+<dd><p>Create a local filesystem knowledge store.</p>
+<p>Files are stored in <code class="docutils literal notranslate"><span class="pre">rootdir</span> <span class="pre">/</span> <span class="pre">project_id</span> <span class="pre">/</span></code>.
+Defaults to <code class="docutils literal notranslate"><span class="pre">~/.local/share/aikb/localkb_files/</span></code> or the
+<code class="docutils literal notranslate"><span class="pre">AIKB_LOCAL_DIR</span></code> environment variable.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span> <span class="o">=</span> <span class="n">LocalKb</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span><span class="p">[</span><span class="s1">&#39;ideas.md&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;# Ideas</span><span class="se">\n</span><span class="s1">First idea&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">store</span><span class="p">[</span><span class="s1">&#39;ideas.md&#39;</span><span class="p">]</span>
+<span class="go">&#39;# Ideas\nFirst idea&#39;</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </section>

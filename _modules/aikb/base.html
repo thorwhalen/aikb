@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>aikb.base &mdash; aikb 0.0.1 documentation</title>
+  <title>aikb.base &mdash; aikb 0.0.2 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
@@ -14,7 +14,7 @@
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="../../_static/documentation_options.js?v=e3a6060d"></script>
       <script src="../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="../../_static/toggleprompt.js?v=d7ede5d2"></script>
@@ -78,11 +78,104 @@
   <h1>Source code for aikb.base</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;Core module: protocols, stores, providers, and factory functions for aikb.&quot;&quot;&quot;</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">MutableMapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cached_property</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">runtime_checkable</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Helpers</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_dependency</span><span class="p">(</span><span class="n">module_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">install_hint</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Import *module_name* or raise an informative ``ImportError``.&quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">module_name</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">module_name</span><span class="si">!r}</span><span class="s2"> is required but not installed. </span><span class="si">{</span><span class="n">install_hint</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_claude_session_key</span><span class="p">(</span><span class="n">session_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve a Claude session key from multiple sources.</span>
+
+<span class="sd">    Priority:</span>
+<span class="sd">    1. Explicit *session_key* parameter</span>
+<span class="sd">    2. ``CLAUDE_SESSION_KEY`` environment variable</span>
+<span class="sd">    3. ClaudeSync stored config (``~/.claudesync/``)</span>
+<span class="sd">    4. ``browser_cookie3`` (optional) — extract from browser cookies</span>
+<span class="sd">    5. Raise ``RuntimeError`` with instructions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># 1. Explicit parameter</span>
+    <span class="k">if</span> <span class="n">session_key</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">session_key</span>
+
+    <span class="c1"># 2. Environment variable</span>
+    <span class="n">env_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;CLAUDE_SESSION_KEY&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">env_key</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">env_key</span>
+
+    <span class="c1"># 3. ClaudeSync stored config</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">claudesync.configmanager</span><span class="w"> </span><span class="kn">import</span> <span class="n">FileConfigManager</span><span class="p">,</span> <span class="n">InMemoryConfigManager</span>
+
+        <span class="n">config</span> <span class="o">=</span> <span class="n">InMemoryConfigManager</span><span class="p">()</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">load_from_file_config</span><span class="p">(</span><span class="n">FileConfigManager</span><span class="p">())</span>
+        <span class="n">stored_key</span><span class="p">,</span> <span class="n">_expiry</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get_session_key</span><span class="p">(</span><span class="s2">&quot;claude.ai&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">stored_key</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">stored_key</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">pass</span>  <span class="c1"># claudesync not installed or config missing</span>
+
+    <span class="c1"># 4. browser_cookie3 (optional)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">browser_cookie3</span>
+
+        <span class="k">for</span> <span class="n">browser_fn</span> <span class="ow">in</span> <span class="p">(</span><span class="n">browser_cookie3</span><span class="o">.</span><span class="n">chrome</span><span class="p">,</span> <span class="n">browser_cookie3</span><span class="o">.</span><span class="n">firefox</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">cj</span> <span class="o">=</span> <span class="n">browser_fn</span><span class="p">(</span><span class="n">domain_name</span><span class="o">=</span><span class="s2">&quot;claude.ai&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">cookie</span> <span class="ow">in</span> <span class="n">cj</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">cookie</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;sessionKey&quot;</span> <span class="ow">and</span> <span class="n">cookie</span><span class="o">.</span><span class="n">value</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">cookie</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">continue</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">pass</span>  <span class="c1"># browser_cookie3 not installed</span>
+
+    <span class="c1"># 5. Nothing found — raise with instructions</span>
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+        <span class="s2">&quot;Could not find a valid Claude session key. Tried:</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  1. Explicit session_key parameter</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  2. CLAUDE_SESSION_KEY environment variable</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  3. ClaudeSync stored config (~/.claudesync/)</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  4. Browser cookies (requires: pip install aikb[cookies])</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;To obtain your session key:</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  1. Open https://claude.ai in your browser and log in</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  2. Open Developer Tools (F12) → Application → Cookies</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  3. Copy the value of the &#39;sessionKey&#39; cookie (starts with &#39;sk-ant-&#39;)</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;  4. Then either:</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;     a. export CLAUDE_SESSION_KEY=&#39;sk-ant-...&#39;</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;     b. Pass session_key=&#39;sk-ant-...&#39; to ClaudeProject() or ClaudeProjects()</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;     c. Run &#39;pip install claudesync &amp;&amp; claudesync auth login&#39;</span><span class="se">\n</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_make_claude_config</span><span class="p">(</span><span class="n">session_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a ClaudeSync ``InMemoryConfigManager`` with the given session key.&quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">claudesync.configmanager</span><span class="w"> </span><span class="kn">import</span> <span class="n">InMemoryConfigManager</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="n">InMemoryConfigManager</span><span class="p">()</span>
+    <span class="c1"># Use naive datetime — InMemoryConfigManager.get_session_key compares</span>
+    <span class="c1"># with datetime.now() (naive), not datetime.now(utc).</span>
+    <span class="n">expiry</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">set_session_key</span><span class="p">(</span><span class="s2">&quot;claude.ai&quot;</span><span class="p">,</span> <span class="n">session_key</span><span class="p">,</span> <span class="n">expiry</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">config</span>
 
 
 <span class="c1"># ---------------------------------------------------------------------------</span>
@@ -103,9 +196,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">read_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">upsert_file</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">upsert_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">delete_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span></div>
 
@@ -124,7 +215,7 @@
 <span class="sd">    Keys are filenames (str), values are file contents (str).</span>
 
 <span class="sd">    &gt;&gt;&gt; import tempfile, os</span>
-<span class="sd">    &gt;&gt;&gt; store = LocalFiles(tempfile.mkdtemp())</span>
+<span class="sd">    &gt;&gt;&gt; store = LocalKb(tempfile.mkdtemp())</span>
 <span class="sd">    &gt;&gt;&gt; store[&#39;notes.md&#39;] = &#39;# Notes&#39;</span>
 <span class="sd">    &gt;&gt;&gt; store[&#39;notes.md&#39;]</span>
 <span class="sd">    &#39;# Notes&#39;</span>
@@ -163,7 +254,9 @@
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
         <span class="n">provider_name</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">provider_name</span><span class="si">}</span><span class="s2">, project_id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_project_id</span><span class="si">!r}</span><span class="s2">)&quot;</span></div>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">provider_name</span><span class="si">}</span><span class="s2">, project_id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_project_id</span><span class="si">!r}</span><span class="s2">)&quot;</span>
+        <span class="p">)</span></div>
 
 
 
@@ -202,13 +295,11 @@
         <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_dir</span><span class="p">(</span><span class="n">project_id</span><span class="p">)</span> <span class="o">/</span> <span class="n">filename</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">upsert_file</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">upsert_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_dir</span><span class="p">(</span><span class="n">project_id</span><span class="p">)</span> <span class="o">/</span> <span class="n">filename</span>
-        <span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">delete_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_dir</span><span class="p">(</span><span class="n">project_id</span><span class="p">)</span> <span class="o">/</span> <span class="n">filename</span>
@@ -223,16 +314,6 @@
 <span class="c1"># ---------------------------------------------------------------------------</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_check_dependency</span><span class="p">(</span><span class="n">module_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">install_hint</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Import *module_name* or raise an informative ``ImportError``.&quot;&quot;&quot;</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">module_name</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">module_name</span><span class="si">!r}</span><span class="s2"> is required but not installed. </span><span class="si">{</span><span class="n">install_hint</span><span class="si">}</span><span class="s2">&quot;</span>
-        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
-
-
 <div class="viewcode-block" id="ClaudeProjectsProvider">
 <a class="viewcode-back" href="../../module_docs/aikb/base.html#aikb.base.ClaudeProjectsProvider">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">ClaudeProjectsProvider</span><span class="p">:</span>
@@ -240,10 +321,11 @@
 
 <span class="sd">    Requires ``pip install aikb[claude]``.</span>
 
-<span class="sd">    Authentication priority:</span>
+<span class="sd">    Session key resolution priority:</span>
 <span class="sd">    1. Explicit *session_key* parameter</span>
 <span class="sd">    2. ``CLAUDE_SESSION_KEY`` environment variable</span>
-<span class="sd">    3. ClaudeSync&#39;s own stored config</span>
+<span class="sd">    3. ClaudeSync stored config (``~/.claudesync/``)</span>
+<span class="sd">    4. Browser cookies (requires ``pip install aikb[cookies]``)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -252,97 +334,140 @@
         <span class="o">*</span><span class="p">,</span>
         <span class="n">organization_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_session_key</span> <span class="o">=</span> <span class="n">session_key</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CLAUDE_SESSION_KEY&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_session_key</span> <span class="o">=</span> <span class="n">session_key</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span> <span class="o">=</span> <span class="n">organization_id</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_client</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">_check_dependency</span><span class="p">(</span>
-            <span class="s1">&#39;claudesync&#39;</span><span class="p">,</span>
-            <span class="n">install_hint</span><span class="o">=</span><span class="s1">&#39;Install with: pip install aikb[claude]&#39;</span><span class="p">,</span>
+            <span class="s2">&quot;claudesync&quot;</span><span class="p">,</span>
+            <span class="n">install_hint</span><span class="o">=</span><span class="s2">&quot;Install with: pip install aikb[claude]&quot;</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">claudesync.providers.claude_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClaudeAIProvider</span>
 
-        <span class="n">provider</span> <span class="o">=</span> <span class="n">ClaudeAIProvider</span><span class="p">(</span><span class="n">session_key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_session_key</span><span class="p">)</span>
+        <span class="n">session_key</span> <span class="o">=</span> <span class="n">_resolve_claude_session_key</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_session_key</span><span class="p">)</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">_make_claude_config</span><span class="p">(</span><span class="n">session_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ClaudeAIProvider</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_org_id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Auto-resolve organization ID.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span><span class="p">:</span>
-            <span class="n">provider</span><span class="o">.</span><span class="n">organization_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span>
-        <span class="k">return</span> <span class="n">provider</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span>
+        <span class="n">orgs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">get_organizations</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">orgs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No organizations found for this session key.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">orgs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">orgs</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;  - </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">)&quot;</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">orgs</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Multiple organizations found. Pass organization_id=...:</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">list_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-        <span class="n">files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">get_project_files</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">organization_id</span><span class="p">,</span> <span class="n">project_id</span>
-        <span class="p">)</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">list_files</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
-            <span class="k">yield</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;file_name&#39;</span><span class="p">]</span>
+            <span class="k">yield</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;file_name&quot;</span><span class="p">]</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">read_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="n">org_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">organization_id</span>
-        <span class="n">files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">get_project_files</span><span class="p">(</span><span class="n">org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">)</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">list_files</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;file_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">filename</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;content&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;file_name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">filename</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;content&quot;</span><span class="p">]</span>
         <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">upsert_file</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">org_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">organization_id</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">delete_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">org_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">organization_id</span>
-        <span class="n">files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">get_project_files</span><span class="p">(</span><span class="n">org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">)</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">list_files</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;file_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">filename</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">delete_file</span><span class="p">(</span><span class="n">org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">,</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;uuid&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;file_name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">filename</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">delete_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_org_id</span><span class="p">,</span> <span class="n">project_id</span><span class="p">,</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;uuid&quot;</span><span class="p">])</span>
                 <span class="k">return</span>
         <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span></div>
 
 
 
 <span class="c1"># ---------------------------------------------------------------------------</span>
-<span class="c1"># KnowledgeMall — store of stores</span>
+<span class="c1"># ClaudeProjects — Mapping of project names → KnowledgeFiles</span>
 <span class="c1"># ---------------------------------------------------------------------------</span>
 
 
-<div class="viewcode-block" id="KnowledgeMall">
-<a class="viewcode-back" href="../../module_docs/aikb/base.html#aikb.base.KnowledgeMall">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">KnowledgeMall</span><span class="p">(</span><span class="n">Mapping</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A read-only mapping of names to :class:`KnowledgeFiles` stores.</span>
+<div class="viewcode-block" id="ClaudeProjects">
+<a class="viewcode-back" href="../../module_docs/aikb/base.html#aikb.base.ClaudeProjects">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ClaudeProjects</span><span class="p">(</span><span class="n">Mapping</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read-only mapping of Claude project names to KnowledgeFiles stores.</span>
 
-<span class="sd">    Useful for multi-project or multi-platform workflows.</span>
-
-<span class="sd">    &gt;&gt;&gt; import tempfile</span>
-<span class="sd">    &gt;&gt;&gt; mall = KnowledgeMall(staging=LocalFiles(tempfile.mkdtemp()))</span>
-<span class="sd">    &gt;&gt;&gt; list(mall)</span>
-<span class="sd">    [&#39;staging&#39;]</span>
-<span class="sd">    &gt;&gt;&gt; isinstance(mall[&#39;staging&#39;], KnowledgeFiles)</span>
-<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; p = ClaudeProjects(session_key=&#39;sk-ant-...&#39;)  # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; list(p)                                        # doctest: +SKIP</span>
+<span class="sd">    [&#39;My Project&#39;, &#39;Another Project&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; files = p[&#39;My Project&#39;]                        # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; list(files)                                    # doctest: +SKIP</span>
+<span class="sd">    [&#39;context.md&#39;, &#39;notes.md&#39;]</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stores</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="o">**</span><span class="n">named_stores</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_stores</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">KnowledgeFiles</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="o">**</span><span class="p">(</span><span class="n">stores</span> <span class="ow">or</span> <span class="p">{}),</span>
-            <span class="o">**</span><span class="n">named_stores</span><span class="p">,</span>
-        <span class="p">}</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">session_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">organization_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">include_archived</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_session_key</span> <span class="o">=</span> <span class="n">session_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span> <span class="o">=</span> <span class="n">organization_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_include_archived</span> <span class="o">=</span> <span class="n">include_archived</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_provider</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ClaudeProjectsProvider</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ClaudeProjectsProvider</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_session_key</span><span class="p">,</span>
+            <span class="n">organization_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_organization_id</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_projects</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build {display_name: project_uuid}.</span>
+
+<span class="sd">        Duplicate names are disambiguated with a UUID prefix suffix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">_org_id</span><span class="p">,</span> <span class="n">include_archived</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_include_archived</span>
+        <span class="p">)</span>
+        <span class="c1"># Group by name to detect collisions</span>
+        <span class="n">seen</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">entries</span> <span class="ow">in</span> <span class="n">seen</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">entries</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">entries</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+                    <span class="n">short_id</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">][:</span><span class="mi">8</span><span class="p">]</span>
+                    <span class="n">result</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">short_id</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">result</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">KnowledgeFiles</span><span class="p">:</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stores</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
-        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projects</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;No store named </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">. Available: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stores</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+                <span class="sa">f</span><span class="s2">&quot;No project named </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">. Available: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_projects</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="n">project_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projects</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">KnowledgeFiles</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="p">,</span> <span class="n">project_id</span><span class="o">=</span><span class="n">project_id</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-        <span class="k">yield from</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stores</span>
+        <span class="k">yield from</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projects</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stores</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_projects</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="n">names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stores</span><span class="p">)</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_projects</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span></div>
 
 
 
@@ -351,17 +476,34 @@
 <span class="c1"># ---------------------------------------------------------------------------</span>
 
 
-<div class="viewcode-block" id="LocalFiles">
-<a class="viewcode-back" href="../../module_docs/aikb/base.html#aikb.base.LocalFiles">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">LocalFiles</span><span class="p">(</span><span class="n">rootdir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;default&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">KnowledgeFiles</span><span class="p">:</span>
+<span class="n">_DEFAULT_LOCAL_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AIKB_LOCAL_DIR&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span>
+    <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.local&quot;</span> <span class="o">/</span> <span class="s2">&quot;share&quot;</span> <span class="o">/</span> <span class="s2">&quot;aikb&quot;</span> <span class="o">/</span> <span class="s2">&quot;localkb_files&quot;</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="LocalKb">
+<a class="viewcode-back" href="../../module_docs/aikb/base.html#aikb.base.LocalKb">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">LocalKb</span><span class="p">(</span>
+    <span class="n">rootdir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">project_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">KnowledgeFiles</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a local filesystem knowledge store.</span>
 
+<span class="sd">    Files are stored in ``rootdir / project_id /``.</span>
+<span class="sd">    Defaults to ``~/.local/share/aikb/localkb_files/`` or the</span>
+<span class="sd">    ``AIKB_LOCAL_DIR`` environment variable.</span>
+
 <span class="sd">    &gt;&gt;&gt; import tempfile</span>
-<span class="sd">    &gt;&gt;&gt; store = LocalFiles(tempfile.mkdtemp())</span>
+<span class="sd">    &gt;&gt;&gt; store = LocalKb(tempfile.mkdtemp())</span>
 <span class="sd">    &gt;&gt;&gt; store[&#39;ideas.md&#39;] = &#39;# Ideas\\nFirst idea&#39;</span>
 <span class="sd">    &gt;&gt;&gt; store[&#39;ideas.md&#39;]</span>
 <span class="sd">    &#39;# Ideas\\nFirst idea&#39;</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">rootdir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">rootdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AIKB_LOCAL_DIR&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span>
+            <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.local&quot;</span> <span class="o">/</span> <span class="s2">&quot;share&quot;</span> <span class="o">/</span> <span class="s2">&quot;aikb&quot;</span> <span class="o">/</span> <span class="s2">&quot;localkb_files&quot;</span>
+        <span class="p">)</span>
     <span class="k">return</span> <span class="n">KnowledgeFiles</span><span class="p">(</span><span class="n">LocalFilesProvider</span><span class="p">(</span><span class="n">rootdir</span><span class="p">),</span> <span class="n">project_id</span><span class="o">=</span><span class="n">project_id</span><span class="p">)</span></div>
 
 
@@ -377,6 +519,9 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a Claude Project knowledge store.</span>
 
 <span class="sd">    Requires ``pip install aikb[claude]``.</span>
+
+<span class="sd">    Session key is resolved automatically (env var, ClaudeSync config,</span>
+<span class="sd">    browser cookies). Pass *session_key* explicitly to override.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">provider</span> <span class="o">=</span> <span class="n">ClaudeProjectsProvider</span><span class="p">(</span>
         <span class="n">session_key</span><span class="o">=</span><span class="n">session_key</span><span class="p">,</span>
