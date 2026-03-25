@@ -1,0 +1,7 @@
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   module_docs/aikb
+   module_docs/aikb/base
+   module_docs/aikb/mcp_server
