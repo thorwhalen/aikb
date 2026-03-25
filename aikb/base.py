@@ -288,9 +288,7 @@ class ClaudeProjectsProvider:
                 return f["content"]
         raise KeyError(filename)
 
-    def upsert_file(
-        self, project_id: str, filename: str, content: str
-    ) -> None:
+    def upsert_file(self, project_id: str, filename: str, content: str) -> None:
         self._client.upload_file(self._org_id, project_id, filename, content)
 
     def delete_file(self, project_id: str, filename: str) -> None:
