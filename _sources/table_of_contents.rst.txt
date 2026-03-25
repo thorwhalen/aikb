@@ -5,3 +5,4 @@
    module_docs/aikb
    module_docs/aikb/base
    module_docs/aikb/mcp_server
+   module_docs/aikb/sync

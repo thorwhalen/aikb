@@ -1,0 +1,715 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aikb.sync &mdash; aikb 0.0.3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47de8214"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/toggleprompt.js?v=d7ede5d2"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            aikb
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../module_docs/aikb.html">aikb</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../module_docs/aikb/base.html">aikb.base</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../module_docs/aikb/mcp_server.html">aikb.mcp_server</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../module_docs/aikb/sync.html">aikb.sync</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">aikb</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">aikb.sync</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for aikb.sync</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Bidirectional sync engine for MutableMapping stores.</span>
+
+<span class="sd">Provides push/pull/clone/sync/status operations that work with any</span>
+<span class="sd">``collections.abc.MutableMapping`` — plain dicts, aikb KnowledgeFiles,</span>
+<span class="sd">dol stores, or anything else that implements the mapping protocol.</span>
+
+<span class="sd">The sync engine is store-agnostic: it never imports aikb.base or any</span>
+<span class="sd">provider. All it needs is ``__getitem__``, ``__setitem__``, ``__delitem__``,</span>
+<span class="sd">and ``__iter__``.</span>
+
+<span class="sd">Zero external dependencies — stdlib only (hashlib, json, dataclasses, enum).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">MutableMapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timezone</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Literal</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Hashing</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="content_hash">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.content_hash">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">content_hash</span><span class="p">(</span><span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;sha256&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return hex digest of *content*.</span>
+
+<span class="sd">    &gt;&gt;&gt; content_hash(&quot;hello&quot;)[:12]</span>
+<span class="sd">    &#39;2cf24dba5fb0&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">algorithm</span><span class="p">,</span> <span class="n">content</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="snapshot">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.snapshot">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">snapshot</span><span class="p">(</span>
+    <span class="n">store</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">hash_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">content_hash</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``{filename: content_hash}`` for every key in *store*.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">hash_fn</span><span class="p">(</span><span class="n">store</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">store</span><span class="p">}</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Types</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="ActionType">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.ActionType">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActionType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">CREATE</span> <span class="o">=</span> <span class="s1">&#39;create&#39;</span>
+    <span class="n">UPDATE</span> <span class="o">=</span> <span class="s1">&#39;update&#39;</span>
+    <span class="n">DELETE</span> <span class="o">=</span> <span class="s1">&#39;delete&#39;</span>
+    <span class="n">CONFLICT</span> <span class="o">=</span> <span class="s1">&#39;conflict&#39;</span>
+    <span class="n">NOOP</span> <span class="o">=</span> <span class="s1">&#39;noop&#39;</span></div>
+
+
+
+<div class="viewcode-block" id="SyncAction">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.SyncAction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SyncAction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A single classified sync operation.&quot;&quot;&quot;</span>
+
+    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">action</span><span class="p">:</span> <span class="n">ActionType</span>
+    <span class="n">direction</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">,</span> <span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">]</span>
+    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">a_hash</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">b_hash</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">manifest_hash</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="ConflictPolicy">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.ConflictPolicy">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConflictPolicy</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Built-in conflict resolution strategies.&quot;&quot;&quot;</span>
+
+    <span class="n">RAISE</span> <span class="o">=</span> <span class="s1">&#39;raise&#39;</span>
+    <span class="n">SKIP</span> <span class="o">=</span> <span class="s1">&#39;skip&#39;</span>
+    <span class="n">A_WINS</span> <span class="o">=</span> <span class="s1">&#39;a_wins&#39;</span>
+    <span class="n">B_WINS</span> <span class="o">=</span> <span class="s1">&#39;b_wins&#39;</span></div>
+
+
+
+<div class="viewcode-block" id="SyncConflictError">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.SyncConflictError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SyncConflictError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raised when unresolved conflicts exist and policy is RAISE.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conflicts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conflicts</span> <span class="o">=</span> <span class="n">conflicts</span>
+        <span class="n">filenames</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">filename</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">conflicts</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Sync conflicts on </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">conflicts</span><span class="p">)</span><span class="si">}</span><span class="s2"> file(s): </span><span class="si">{</span><span class="n">filenames</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Manifest I/O</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="load_manifest">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.load_manifest">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_manifest</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Load a manifest from a JSON file.</span>
+
+<span class="sd">    Returns an empty dict if the file does not exist.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;files&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>  <span class="c1"># support raw dict or structured format</span></div>
+
+
+
+<div class="viewcode-block" id="save_manifest">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.save_manifest">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">save_manifest</span><span class="p">(</span>
+    <span class="n">manifest</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Save a manifest to a JSON file.&quot;&quot;&quot;</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;_meta&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;synced_at&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span><span class="o">.</span><span class="n">isoformat</span><span class="p">(),</span>
+            <span class="s1">&#39;hash_algorithm&#39;</span><span class="p">:</span> <span class="s1">&#39;sha256&#39;</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;files&#39;</span><span class="p">:</span> <span class="n">manifest</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Reconciliation</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="reconcile">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.reconcile">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">reconcile</span><span class="p">(</span>
+    <span class="n">snap_a</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="n">snap_b</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">manifest</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Three-way reconciliation between snapshots A, B and a manifest.</span>
+
+<span class="sd">    If *manifest* is ``None``, falls back to two-way comparison (cannot</span>
+<span class="sd">    distinguish &quot;created on A&quot; from &quot;deleted on B&quot;).</span>
+
+<span class="sd">    Returns a list of :class:`SyncAction` instances — one per filename</span>
+<span class="sd">    across the union of all three sets.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">manifest</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_reconcile_two_way</span><span class="p">(</span><span class="n">snap_a</span><span class="p">,</span> <span class="n">snap_b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_reconcile_three_way</span><span class="p">(</span><span class="n">snap_a</span><span class="p">,</span> <span class="n">snap_b</span><span class="p">,</span> <span class="n">manifest</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_reconcile_two_way</span><span class="p">(</span>
+    <span class="n">snap_a</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="n">snap_b</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">all_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">snap_a</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">snap_b</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">all_keys</span><span class="p">):</span>
+        <span class="n">in_a</span> <span class="o">=</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">snap_a</span>
+        <span class="n">in_b</span> <span class="o">=</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">snap_b</span>
+
+        <span class="k">if</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">snap_a</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="n">snap_b</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;identical&#39;</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">,</span> <span class="s1">&#39;both&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;different content, no manifest to disambiguate&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">snap_a</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">snap_b</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+                <span class="p">))</span>
+        <span class="k">elif</span> <span class="n">in_a</span><span class="p">:</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;exists only in A&#39;</span><span class="p">,</span>
+                <span class="n">a_hash</span><span class="o">=</span><span class="n">snap_a</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+            <span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">,</span> <span class="s1">&#39;exists only in B&#39;</span><span class="p">,</span>
+                <span class="n">b_hash</span><span class="o">=</span><span class="n">snap_b</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+            <span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">actions</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_reconcile_three_way</span><span class="p">(</span>
+    <span class="n">snap_a</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="n">snap_b</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="n">manifest</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">all_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">snap_a</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">snap_b</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">manifest</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">all_keys</span><span class="p">):</span>
+        <span class="n">in_a</span> <span class="o">=</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">snap_a</span>
+        <span class="n">in_b</span> <span class="o">=</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">snap_b</span>
+        <span class="n">in_m</span> <span class="o">=</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">manifest</span>
+
+        <span class="n">ha</span> <span class="o">=</span> <span class="n">snap_a</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">hb</span> <span class="o">=</span> <span class="n">snap_b</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">hm</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">in_m</span> <span class="ow">and</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="c1"># Case 1: existed in all three</span>
+            <span class="k">if</span> <span class="n">ha</span> <span class="o">==</span> <span class="n">hm</span> <span class="ow">and</span> <span class="n">hb</span> <span class="o">==</span> <span class="n">hm</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;unchanged&#39;</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">ha</span> <span class="o">!=</span> <span class="n">hm</span> <span class="ow">and</span> <span class="n">hb</span> <span class="o">==</span> <span class="n">hm</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">UPDATE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;modified in A&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                <span class="p">))</span>
+            <span class="k">elif</span> <span class="n">ha</span> <span class="o">==</span> <span class="n">hm</span> <span class="ow">and</span> <span class="n">hb</span> <span class="o">!=</span> <span class="n">hm</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">UPDATE</span><span class="p">,</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">,</span> <span class="s1">&#39;modified in B&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                <span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Both modified</span>
+                <span class="k">if</span> <span class="n">ha</span> <span class="o">==</span> <span class="n">hb</span><span class="p">:</span>
+                    <span class="c1"># Same change on both sides — no conflict</span>
+                    <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                        <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;modified identically in both&#39;</span><span class="p">,</span>
+                        <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                    <span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                        <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">,</span> <span class="s1">&#39;both&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;modified differently in both&#39;</span><span class="p">,</span>
+                        <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                    <span class="p">))</span>
+        <span class="k">elif</span> <span class="n">in_m</span> <span class="ow">and</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="c1"># Case 2: B deleted</span>
+            <span class="k">if</span> <span class="n">ha</span> <span class="o">==</span> <span class="n">hm</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">DELETE</span><span class="p">,</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">,</span> <span class="s1">&#39;deleted in B&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                <span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># A modified, B deleted — conflict</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">,</span> <span class="s1">&#39;both&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;modified in A, deleted in B&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                <span class="p">))</span>
+        <span class="k">elif</span> <span class="n">in_m</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="c1"># Case 3: A deleted</span>
+            <span class="k">if</span> <span class="n">hb</span> <span class="o">==</span> <span class="n">hm</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">DELETE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;deleted in A&#39;</span><span class="p">,</span>
+                    <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                <span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># B modified, A deleted — conflict</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">,</span> <span class="s1">&#39;both&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;deleted in A, modified in B&#39;</span><span class="p">,</span>
+                    <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+                <span class="p">))</span>
+        <span class="k">elif</span> <span class="n">in_m</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="c1"># Case 4: both deleted</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;deleted in both&#39;</span><span class="p">,</span>
+                <span class="n">manifest_hash</span><span class="o">=</span><span class="n">hm</span><span class="p">,</span>
+            <span class="p">))</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">in_m</span> <span class="ow">and</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="c1"># Case 5: both created</span>
+            <span class="k">if</span> <span class="n">ha</span> <span class="o">==</span> <span class="n">hb</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;created identically in both&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span>
+                <span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">,</span> <span class="s1">&#39;both&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;created differently in both&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span>
+                <span class="p">))</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">in_m</span> <span class="ow">and</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="c1"># Case 6: created in A</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;created in A&#39;</span><span class="p">,</span>
+                <span class="n">a_hash</span><span class="o">=</span><span class="n">ha</span><span class="p">,</span>
+            <span class="p">))</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">in_m</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">in_a</span> <span class="ow">and</span> <span class="n">in_b</span><span class="p">:</span>
+            <span class="c1"># Case 7: created in B</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">,</span> <span class="s1">&#39;created in B&#39;</span><span class="p">,</span>
+                <span class="n">b_hash</span><span class="o">=</span><span class="n">hb</span><span class="p">,</span>
+            <span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">actions</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Conflict resolution</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="resolve_conflicts">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.resolve_conflicts">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_conflicts</span><span class="p">(</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">on_conflict</span><span class="p">:</span> <span class="n">ConflictPolicy</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">SyncAction</span><span class="p">],</span> <span class="n">SyncAction</span><span class="p">]</span> <span class="o">=</span> <span class="n">ConflictPolicy</span><span class="o">.</span><span class="n">RAISE</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply a conflict resolution policy, returning a resolved action list.</span>
+
+<span class="sd">    *on_conflict* can be a :class:`ConflictPolicy` enum or a callable that</span>
+<span class="sd">    receives a conflict :class:`SyncAction` and returns a resolved one.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">conflicts</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">conflicts</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">actions</span>
+
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">on_conflict</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">on_conflict</span><span class="p">,</span> <span class="n">ConflictPolicy</span><span class="p">):</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="o">.</span><span class="n">filename</span><span class="p">:</span> <span class="n">on_conflict</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">conflicts</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">resolved</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span> <span class="k">else</span> <span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">on_conflict</span> <span class="ow">is</span> <span class="n">ConflictPolicy</span><span class="o">.</span><span class="n">RAISE</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SyncConflictError</span><span class="p">(</span><span class="n">conflicts</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">on_conflict</span> <span class="ow">is</span> <span class="n">ConflictPolicy</span><span class="o">.</span><span class="n">SKIP</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">on_conflict</span> <span class="ow">is</span> <span class="n">ConflictPolicy</span><span class="o">.</span><span class="n">A_WINS</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">_resolve_a_wins</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span> <span class="k">else</span> <span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">on_conflict</span> <span class="ow">is</span> <span class="n">ConflictPolicy</span><span class="o">.</span><span class="n">B_WINS</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">_resolve_b_wins</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span> <span class="k">else</span> <span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span><span class="p">]</span>
+
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown conflict policy: </span><span class="si">{</span><span class="n">on_conflict</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_a_wins</span><span class="p">(</span><span class="n">action</span><span class="p">:</span> <span class="n">SyncAction</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncAction</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">a_hash</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">SyncAction</span><span class="p">(</span>
+            <span class="n">action</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">UPDATE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s1"> (resolved: A wins)&#39;</span><span class="p">,</span>
+            <span class="n">a_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">a_hash</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">b_hash</span><span class="p">,</span>
+            <span class="n">manifest_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">manifest_hash</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="c1"># A deleted the file — propagate deletion to B</span>
+    <span class="k">return</span> <span class="n">SyncAction</span><span class="p">(</span>
+        <span class="n">action</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">DELETE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s1"> (resolved: A wins)&#39;</span><span class="p">,</span>
+        <span class="n">b_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">b_hash</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">manifest_hash</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_b_wins</span><span class="p">(</span><span class="n">action</span><span class="p">:</span> <span class="n">SyncAction</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SyncAction</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">b_hash</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">SyncAction</span><span class="p">(</span>
+            <span class="n">action</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">UPDATE</span><span class="p">,</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s1"> (resolved: B wins)&#39;</span><span class="p">,</span>
+            <span class="n">a_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">a_hash</span><span class="p">,</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">b_hash</span><span class="p">,</span>
+            <span class="n">manifest_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">manifest_hash</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="c1"># B deleted the file — propagate deletion to A</span>
+    <span class="k">return</span> <span class="n">SyncAction</span><span class="p">(</span>
+        <span class="n">action</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">DELETE</span><span class="p">,</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s1"> (resolved: B wins)&#39;</span><span class="p">,</span>
+        <span class="n">a_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">a_hash</span><span class="p">,</span> <span class="n">manifest_hash</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">manifest_hash</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Propagation</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="propagate">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.propagate">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">propagate</span><span class="p">(</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">],</span>
+    <span class="n">a</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="n">b</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execute non-conflict, non-noop actions against stores *a* and *b*.</span>
+
+<span class="sd">    Returns the list of actions that were actually applied.</span>
+<span class="sd">    Skips CONFLICT and NOOP actions silently.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">applied</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">act</span> <span class="ow">in</span> <span class="n">actions</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">act</span><span class="o">.</span><span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="n">ActionType</span><span class="o">.</span><span class="n">CONFLICT</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dry_run</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">act</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">act</span><span class="o">.</span><span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">UPDATE</span><span class="p">):</span>
+                    <span class="n">b</span><span class="p">[</span><span class="n">act</span><span class="o">.</span><span class="n">filename</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="n">act</span><span class="o">.</span><span class="n">filename</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="n">act</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">DELETE</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">b</span><span class="p">[</span><span class="n">act</span><span class="o">.</span><span class="n">filename</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="n">act</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="s1">&#39;b_to_a&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">act</span><span class="o">.</span><span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">UPDATE</span><span class="p">):</span>
+                    <span class="n">a</span><span class="p">[</span><span class="n">act</span><span class="o">.</span><span class="n">filename</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="n">act</span><span class="o">.</span><span class="n">filename</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="n">act</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">DELETE</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">a</span><span class="p">[</span><span class="n">act</span><span class="o">.</span><span class="n">filename</span><span class="p">]</span>
+
+        <span class="n">applied</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">act</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">applied</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># High-level operations</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="status">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.status">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">status</span><span class="p">(</span>
+    <span class="n">a</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="n">b</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">manifest</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">hash_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">content_hash</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute sync status without making any changes.</span>
+
+<span class="sd">    Returns classified actions showing what *would* happen on sync.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">reconcile</span><span class="p">(</span><span class="n">snapshot</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">),</span> <span class="n">snapshot</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">),</span> <span class="n">manifest</span><span class="o">=</span><span class="n">manifest</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="push">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.push">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="n">target</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">delete</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">hash_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">content_hash</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One-directional: propagate *source* state to *target*.</span>
+
+<span class="sd">    This is a &quot;source wins&quot; operation — no manifest needed.</span>
+<span class="sd">    If *delete* is True, files in *target* that are absent from *source*</span>
+<span class="sd">    are removed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">snap_src</span> <span class="o">=</span> <span class="n">snapshot</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">)</span>
+    <span class="n">snap_tgt</span> <span class="o">=</span> <span class="n">snapshot</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">)</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">all_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">snap_src</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">snap_tgt</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">all_keys</span><span class="p">):</span>
+        <span class="n">in_src</span> <span class="o">=</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">snap_src</span>
+        <span class="n">in_tgt</span> <span class="o">=</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">snap_tgt</span>
+
+        <span class="k">if</span> <span class="n">in_src</span> <span class="ow">and</span> <span class="n">in_tgt</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">snap_src</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="n">snap_tgt</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;identical&#39;</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">UPDATE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;content differs&#39;</span><span class="p">,</span>
+                    <span class="n">a_hash</span><span class="o">=</span><span class="n">snap_src</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">b_hash</span><span class="o">=</span><span class="n">snap_tgt</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+                <span class="p">))</span>
+        <span class="k">elif</span> <span class="n">in_src</span><span class="p">:</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;missing in target&#39;</span><span class="p">,</span>
+                <span class="n">a_hash</span><span class="o">=</span><span class="n">snap_src</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+            <span class="p">))</span>
+        <span class="k">elif</span> <span class="n">delete</span><span class="p">:</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">DELETE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;not in source, deleting from target&#39;</span><span class="p">,</span>
+                <span class="n">b_hash</span><span class="o">=</span><span class="n">snap_tgt</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+            <span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">NOOP</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;extra in target (kept)&#39;</span><span class="p">,</span>
+                <span class="n">b_hash</span><span class="o">=</span><span class="n">snap_tgt</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+            <span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">propagate</span><span class="p">(</span><span class="n">actions</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">dry_run</span><span class="o">=</span><span class="n">dry_run</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="pull">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.pull">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">pull</span><span class="p">(</span>
+    <span class="n">target</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">delete</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">hash_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">content_hash</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One-directional: propagate *source* state into *target*.</span>
+
+<span class="sd">    Convenience wrapper — same as ``push(source, target, ...)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">push</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="n">delete</span><span class="p">,</span> <span class="n">dry_run</span><span class="o">=</span><span class="n">dry_run</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="sync">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.sync">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">sync</span><span class="p">(</span>
+    <span class="n">a</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="n">b</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">manifest</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">manifest_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">on_conflict</span><span class="p">:</span> <span class="n">ConflictPolicy</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">SyncAction</span><span class="p">],</span> <span class="n">SyncAction</span><span class="p">]</span> <span class="o">=</span> <span class="n">ConflictPolicy</span><span class="o">.</span><span class="n">RAISE</span><span class="p">,</span>
+    <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">hash_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">content_hash</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Bidirectional sync with three-way reconciliation.</span>
+
+<span class="sd">    Requires a *manifest* (or *manifest_path*) for correct conflict detection.</span>
+<span class="sd">    If neither is provided, uses an empty manifest (first sync — everything</span>
+<span class="sd">    looks &quot;created&quot;).</span>
+
+<span class="sd">    After successful propagation, updates the manifest to reflect the new</span>
+<span class="sd">    synchronized state.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">manifest</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">manifest_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">manifest</span> <span class="o">=</span> <span class="n">load_manifest</span><span class="p">(</span><span class="n">manifest_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">manifest</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">manifest</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">snap_a</span> <span class="o">=</span> <span class="n">snapshot</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">)</span>
+    <span class="n">snap_b</span> <span class="o">=</span> <span class="n">snapshot</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">)</span>
+    <span class="n">actions</span> <span class="o">=</span> <span class="n">reconcile</span><span class="p">(</span><span class="n">snap_a</span><span class="p">,</span> <span class="n">snap_b</span><span class="p">,</span> <span class="n">manifest</span><span class="o">=</span><span class="n">manifest</span><span class="p">)</span>
+    <span class="n">actions</span> <span class="o">=</span> <span class="n">resolve_conflicts</span><span class="p">(</span><span class="n">actions</span><span class="p">,</span> <span class="n">on_conflict</span><span class="o">=</span><span class="n">on_conflict</span><span class="p">)</span>
+    <span class="n">applied</span> <span class="o">=</span> <span class="n">propagate</span><span class="p">(</span><span class="n">actions</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">dry_run</span><span class="o">=</span><span class="n">dry_run</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dry_run</span><span class="p">:</span>
+        <span class="c1"># Build new manifest from the now-synchronized state</span>
+        <span class="n">new_manifest</span> <span class="o">=</span> <span class="n">snapshot</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">manifest_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">save_manifest</span><span class="p">(</span><span class="n">new_manifest</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">manifest_path</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">applied</span></div>
+
+
+
+<div class="viewcode-block" id="clone">
+<a class="viewcode-back" href="../../module_docs/aikb/sync.html#aikb.sync.clone">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">clone</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="n">target</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">manifest_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">hash_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">content_hash</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initial copy: replicate *source* into *target*, creating a manifest.</span>
+
+<span class="sd">    Clears *target* first, then copies all content from *source*.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Clear target</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+        <span class="k">del</span> <span class="n">target</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+
+    <span class="c1"># Copy all</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SyncAction</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">source</span><span class="p">:</span>
+        <span class="n">target</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">source</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SyncAction</span><span class="p">(</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">ActionType</span><span class="o">.</span><span class="n">CREATE</span><span class="p">,</span> <span class="s1">&#39;a_to_b&#39;</span><span class="p">,</span> <span class="s1">&#39;cloned from source&#39;</span><span class="p">,</span>
+            <span class="n">a_hash</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">(</span><span class="n">source</span><span class="p">[</span><span class="n">k</span><span class="p">]),</span>
+        <span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">manifest_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">save_manifest</span><span class="p">(</span><span class="n">snapshot</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">hash_fn</span><span class="o">=</span><span class="n">hash_fn</span><span class="p">),</span> <span class="n">path</span><span class="o">=</span><span class="n">manifest_path</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">actions</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright NO COPYRIGHT.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
