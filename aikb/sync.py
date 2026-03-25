@@ -28,13 +28,13 @@ from typing import Callable, Literal
 # ---------------------------------------------------------------------------
 
 
-def content_hash(content: str, *, algorithm: str = 'sha256') -> str:
+def content_hash(content: str, *, algorithm: str = "sha256") -> str:
     """Return hex digest of *content*.
 
     >>> content_hash("hello")[:12]
     '2cf24dba5fb0'
     """
-    return hashlib.new(algorithm, content.encode('utf-8')).hexdigest()
+    return hashlib.new(algorithm, content.encode("utf-8")).hexdigest()
 
 
 def snapshot(
@@ -52,11 +52,11 @@ def snapshot(
 
 
 class ActionType(Enum):
-    CREATE = 'create'
-    UPDATE = 'update'
-    DELETE = 'delete'
-    CONFLICT = 'conflict'
-    NOOP = 'noop'
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+    CONFLICT = "conflict"
+    NOOP = "noop"
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ class SyncAction:
 
     filename: str
     action: ActionType
-    direction: Literal['a_to_b', 'b_to_a', 'both', 'none']
+    direction: Literal["a_to_b", "b_to_a", "both", "none"]
     reason: str
     a_hash: str | None = None
     b_hash: str | None = None
@@ -75,10 +75,10 @@ class SyncAction:
 class ConflictPolicy(Enum):
     """Built-in conflict resolution strategies."""
 
-    RAISE = 'raise'
-    SKIP = 'skip'
-    A_WINS = 'a_wins'
-    B_WINS = 'b_wins'
+    RAISE = "raise"
+    SKIP = "skip"
+    A_WINS = "a_wins"
+    B_WINS = "b_wins"
 
 
 class SyncConflictError(Exception):
@@ -87,9 +87,7 @@ class SyncConflictError(Exception):
     def __init__(self, conflicts: list[SyncAction]):
         self.conflicts = conflicts
         filenames = [c.filename for c in conflicts]
-        super().__init__(
-            f"Sync conflicts on {len(conflicts)} file(s): {filenames}"
-        )
+        super().__init__(f"Sync conflicts on {len(conflicts)} file(s): {filenames}")
 
 
 # ---------------------------------------------------------------------------
@@ -105,8 +103,8 @@ def load_manifest(path: str | Path) -> dict[str, str]:
     p = Path(path)
     if not p.is_file():
         return {}
-    data = json.loads(p.read_text(encoding='utf-8'))
-    return data.get('files', data)  # support raw dict or structured format
+    data = json.loads(p.read_text(encoding="utf-8"))
+    return data.get("files", data)  # support raw dict or structured format
 
 
 def save_manifest(
@@ -118,13 +116,13 @@ def save_manifest(
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     data = {
-        '_meta': {
-            'synced_at': datetime.now(timezone.utc).isoformat(),
-            'hash_algorithm': 'sha256',
+        "_meta": {
+            "synced_at": datetime.now(timezone.utc).isoformat(),
+            "hash_algorithm": "sha256",
         },
-        'files': manifest,
+        "files": manifest,
     }
-    p.write_text(json.dumps(data, indent=2, sort_keys=True), encoding='utf-8')
+    p.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -164,23 +162,38 @@ def _reconcile_two_way(
 
         if in_a and in_b:
             if snap_a[k] == snap_b[k]:
-                actions.append(SyncAction(k, ActionType.NOOP, 'none', 'identical'))
+                actions.append(SyncAction(k, ActionType.NOOP, "none", "identical"))
             else:
-                actions.append(SyncAction(
-                    k, ActionType.CONFLICT, 'both',
-                    'different content, no manifest to disambiguate',
-                    a_hash=snap_a[k], b_hash=snap_b[k],
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.CONFLICT,
+                        "both",
+                        "different content, no manifest to disambiguate",
+                        a_hash=snap_a[k],
+                        b_hash=snap_b[k],
+                    )
+                )
         elif in_a:
-            actions.append(SyncAction(
-                k, ActionType.CREATE, 'a_to_b', 'exists only in A',
-                a_hash=snap_a[k],
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.CREATE,
+                    "a_to_b",
+                    "exists only in A",
+                    a_hash=snap_a[k],
+                )
+            )
         else:
-            actions.append(SyncAction(
-                k, ActionType.CREATE, 'b_to_a', 'exists only in B',
-                b_hash=snap_b[k],
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.CREATE,
+                    "b_to_a",
+                    "exists only in B",
+                    b_hash=snap_b[k],
+                )
+            )
 
     return actions
 
@@ -205,91 +218,165 @@ def _reconcile_three_way(
         if in_m and in_a and in_b:
             # Case 1: existed in all three
             if ha == hm and hb == hm:
-                actions.append(SyncAction(k, ActionType.NOOP, 'none', 'unchanged'))
+                actions.append(SyncAction(k, ActionType.NOOP, "none", "unchanged"))
             elif ha != hm and hb == hm:
-                actions.append(SyncAction(
-                    k, ActionType.UPDATE, 'a_to_b', 'modified in A',
-                    a_hash=ha, b_hash=hb, manifest_hash=hm,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.UPDATE,
+                        "a_to_b",
+                        "modified in A",
+                        a_hash=ha,
+                        b_hash=hb,
+                        manifest_hash=hm,
+                    )
+                )
             elif ha == hm and hb != hm:
-                actions.append(SyncAction(
-                    k, ActionType.UPDATE, 'b_to_a', 'modified in B',
-                    a_hash=ha, b_hash=hb, manifest_hash=hm,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.UPDATE,
+                        "b_to_a",
+                        "modified in B",
+                        a_hash=ha,
+                        b_hash=hb,
+                        manifest_hash=hm,
+                    )
+                )
             else:
                 # Both modified
                 if ha == hb:
                     # Same change on both sides — no conflict
-                    actions.append(SyncAction(
-                        k, ActionType.NOOP, 'none',
-                        'modified identically in both',
-                        a_hash=ha, b_hash=hb, manifest_hash=hm,
-                    ))
+                    actions.append(
+                        SyncAction(
+                            k,
+                            ActionType.NOOP,
+                            "none",
+                            "modified identically in both",
+                            a_hash=ha,
+                            b_hash=hb,
+                            manifest_hash=hm,
+                        )
+                    )
                 else:
-                    actions.append(SyncAction(
-                        k, ActionType.CONFLICT, 'both',
-                        'modified differently in both',
-                        a_hash=ha, b_hash=hb, manifest_hash=hm,
-                    ))
+                    actions.append(
+                        SyncAction(
+                            k,
+                            ActionType.CONFLICT,
+                            "both",
+                            "modified differently in both",
+                            a_hash=ha,
+                            b_hash=hb,
+                            manifest_hash=hm,
+                        )
+                    )
         elif in_m and in_a and not in_b:
             # Case 2: B deleted
             if ha == hm:
-                actions.append(SyncAction(
-                    k, ActionType.DELETE, 'b_to_a', 'deleted in B',
-                    a_hash=ha, manifest_hash=hm,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.DELETE,
+                        "b_to_a",
+                        "deleted in B",
+                        a_hash=ha,
+                        manifest_hash=hm,
+                    )
+                )
             else:
                 # A modified, B deleted — conflict
-                actions.append(SyncAction(
-                    k, ActionType.CONFLICT, 'both',
-                    'modified in A, deleted in B',
-                    a_hash=ha, manifest_hash=hm,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.CONFLICT,
+                        "both",
+                        "modified in A, deleted in B",
+                        a_hash=ha,
+                        manifest_hash=hm,
+                    )
+                )
         elif in_m and not in_a and in_b:
             # Case 3: A deleted
             if hb == hm:
-                actions.append(SyncAction(
-                    k, ActionType.DELETE, 'a_to_b', 'deleted in A',
-                    b_hash=hb, manifest_hash=hm,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.DELETE,
+                        "a_to_b",
+                        "deleted in A",
+                        b_hash=hb,
+                        manifest_hash=hm,
+                    )
+                )
             else:
                 # B modified, A deleted — conflict
-                actions.append(SyncAction(
-                    k, ActionType.CONFLICT, 'both',
-                    'deleted in A, modified in B',
-                    b_hash=hb, manifest_hash=hm,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.CONFLICT,
+                        "both",
+                        "deleted in A, modified in B",
+                        b_hash=hb,
+                        manifest_hash=hm,
+                    )
+                )
         elif in_m and not in_a and not in_b:
             # Case 4: both deleted
-            actions.append(SyncAction(
-                k, ActionType.NOOP, 'none', 'deleted in both',
-                manifest_hash=hm,
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.NOOP,
+                    "none",
+                    "deleted in both",
+                    manifest_hash=hm,
+                )
+            )
         elif not in_m and in_a and in_b:
             # Case 5: both created
             if ha == hb:
-                actions.append(SyncAction(
-                    k, ActionType.NOOP, 'none', 'created identically in both',
-                    a_hash=ha, b_hash=hb,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.NOOP,
+                        "none",
+                        "created identically in both",
+                        a_hash=ha,
+                        b_hash=hb,
+                    )
+                )
             else:
-                actions.append(SyncAction(
-                    k, ActionType.CONFLICT, 'both',
-                    'created differently in both',
-                    a_hash=ha, b_hash=hb,
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.CONFLICT,
+                        "both",
+                        "created differently in both",
+                        a_hash=ha,
+                        b_hash=hb,
+                    )
+                )
         elif not in_m and in_a and not in_b:
             # Case 6: created in A
-            actions.append(SyncAction(
-                k, ActionType.CREATE, 'a_to_b', 'created in A',
-                a_hash=ha,
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.CREATE,
+                    "a_to_b",
+                    "created in A",
+                    a_hash=ha,
+                )
+            )
         elif not in_m and not in_a and in_b:
             # Case 7: created in B
-            actions.append(SyncAction(
-                k, ActionType.CREATE, 'b_to_a', 'created in B',
-                b_hash=hb,
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.CREATE,
+                    "b_to_a",
+                    "created in B",
+                    b_hash=hb,
+                )
+            )
 
     return actions
 
@@ -302,7 +389,8 @@ def _reconcile_three_way(
 def resolve_conflicts(
     actions: list[SyncAction],
     *,
-    on_conflict: ConflictPolicy | Callable[[SyncAction], SyncAction] = ConflictPolicy.RAISE,
+    on_conflict: ConflictPolicy
+    | Callable[[SyncAction], SyncAction] = ConflictPolicy.RAISE,
 ) -> list[SyncAction]:
     """Apply a conflict resolution policy, returning a resolved action list.
 
@@ -316,7 +404,10 @@ def resolve_conflicts(
 
     if callable(on_conflict) and not isinstance(on_conflict, ConflictPolicy):
         resolved = {c.filename: on_conflict(c) for c in conflicts}
-        return [resolved.get(a.filename, a) if a.action is ActionType.CONFLICT else a for a in actions]
+        return [
+            resolved.get(a.filename, a) if a.action is ActionType.CONFLICT else a
+            for a in actions
+        ]
 
     if on_conflict is ConflictPolicy.RAISE:
         raise SyncConflictError(conflicts)
@@ -325,10 +416,16 @@ def resolve_conflicts(
         return [a for a in actions if a.action is not ActionType.CONFLICT]
 
     if on_conflict is ConflictPolicy.A_WINS:
-        return [_resolve_a_wins(a) if a.action is ActionType.CONFLICT else a for a in actions]
+        return [
+            _resolve_a_wins(a) if a.action is ActionType.CONFLICT else a
+            for a in actions
+        ]
 
     if on_conflict is ConflictPolicy.B_WINS:
-        return [_resolve_b_wins(a) if a.action is ActionType.CONFLICT else a for a in actions]
+        return [
+            _resolve_b_wins(a) if a.action is ActionType.CONFLICT else a
+            for a in actions
+        ]
 
     raise ValueError(f"Unknown conflict policy: {on_conflict!r}")
 
@@ -336,32 +433,44 @@ def resolve_conflicts(
 def _resolve_a_wins(action: SyncAction) -> SyncAction:
     if action.a_hash is not None:
         return SyncAction(
-            action.filename, ActionType.UPDATE, 'a_to_b',
-            f'{action.reason} (resolved: A wins)',
-            a_hash=action.a_hash, b_hash=action.b_hash,
+            action.filename,
+            ActionType.UPDATE,
+            "a_to_b",
+            f"{action.reason} (resolved: A wins)",
+            a_hash=action.a_hash,
+            b_hash=action.b_hash,
             manifest_hash=action.manifest_hash,
         )
     # A deleted the file — propagate deletion to B
     return SyncAction(
-        action.filename, ActionType.DELETE, 'a_to_b',
-        f'{action.reason} (resolved: A wins)',
-        b_hash=action.b_hash, manifest_hash=action.manifest_hash,
+        action.filename,
+        ActionType.DELETE,
+        "a_to_b",
+        f"{action.reason} (resolved: A wins)",
+        b_hash=action.b_hash,
+        manifest_hash=action.manifest_hash,
     )
 
 
 def _resolve_b_wins(action: SyncAction) -> SyncAction:
     if action.b_hash is not None:
         return SyncAction(
-            action.filename, ActionType.UPDATE, 'b_to_a',
-            f'{action.reason} (resolved: B wins)',
-            a_hash=action.a_hash, b_hash=action.b_hash,
+            action.filename,
+            ActionType.UPDATE,
+            "b_to_a",
+            f"{action.reason} (resolved: B wins)",
+            a_hash=action.a_hash,
+            b_hash=action.b_hash,
             manifest_hash=action.manifest_hash,
         )
     # B deleted the file — propagate deletion to A
     return SyncAction(
-        action.filename, ActionType.DELETE, 'b_to_a',
-        f'{action.reason} (resolved: B wins)',
-        a_hash=action.a_hash, manifest_hash=action.manifest_hash,
+        action.filename,
+        ActionType.DELETE,
+        "b_to_a",
+        f"{action.reason} (resolved: B wins)",
+        a_hash=action.a_hash,
+        manifest_hash=action.manifest_hash,
     )
 
 
@@ -389,12 +498,12 @@ def propagate(
             continue
 
         if not dry_run:
-            if act.direction == 'a_to_b':
+            if act.direction == "a_to_b":
                 if act.action in (ActionType.CREATE, ActionType.UPDATE):
                     b[act.filename] = a[act.filename]
                 elif act.action is ActionType.DELETE:
                     del b[act.filename]
-            elif act.direction == 'b_to_a':
+            elif act.direction == "b_to_a":
                 if act.action in (ActionType.CREATE, ActionType.UPDATE):
                     a[act.filename] = b[act.filename]
                 elif act.action is ActionType.DELETE:
@@ -421,7 +530,9 @@ def status(
 
     Returns classified actions showing what *would* happen on sync.
     """
-    return reconcile(snapshot(a, hash_fn=hash_fn), snapshot(b, hash_fn=hash_fn), manifest=manifest)
+    return reconcile(
+        snapshot(a, hash_fn=hash_fn), snapshot(b, hash_fn=hash_fn), manifest=manifest
+    )
 
 
 def push(
@@ -449,27 +560,48 @@ def push(
 
         if in_src and in_tgt:
             if snap_src[k] == snap_tgt[k]:
-                actions.append(SyncAction(k, ActionType.NOOP, 'none', 'identical'))
+                actions.append(SyncAction(k, ActionType.NOOP, "none", "identical"))
             else:
-                actions.append(SyncAction(
-                    k, ActionType.UPDATE, 'a_to_b', 'content differs',
-                    a_hash=snap_src[k], b_hash=snap_tgt[k],
-                ))
+                actions.append(
+                    SyncAction(
+                        k,
+                        ActionType.UPDATE,
+                        "a_to_b",
+                        "content differs",
+                        a_hash=snap_src[k],
+                        b_hash=snap_tgt[k],
+                    )
+                )
         elif in_src:
-            actions.append(SyncAction(
-                k, ActionType.CREATE, 'a_to_b', 'missing in target',
-                a_hash=snap_src[k],
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.CREATE,
+                    "a_to_b",
+                    "missing in target",
+                    a_hash=snap_src[k],
+                )
+            )
         elif delete:
-            actions.append(SyncAction(
-                k, ActionType.DELETE, 'a_to_b', 'not in source, deleting from target',
-                b_hash=snap_tgt[k],
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.DELETE,
+                    "a_to_b",
+                    "not in source, deleting from target",
+                    b_hash=snap_tgt[k],
+                )
+            )
         else:
-            actions.append(SyncAction(
-                k, ActionType.NOOP, 'none', 'extra in target (kept)',
-                b_hash=snap_tgt[k],
-            ))
+            actions.append(
+                SyncAction(
+                    k,
+                    ActionType.NOOP,
+                    "none",
+                    "extra in target (kept)",
+                    b_hash=snap_tgt[k],
+                )
+            )
 
     return propagate(actions, source, target, dry_run=dry_run)
 
@@ -495,7 +627,8 @@ def sync(
     *,
     manifest: dict[str, str] | None = None,
     manifest_path: str | Path | None = None,
-    on_conflict: ConflictPolicy | Callable[[SyncAction], SyncAction] = ConflictPolicy.RAISE,
+    on_conflict: ConflictPolicy
+    | Callable[[SyncAction], SyncAction] = ConflictPolicy.RAISE,
     dry_run: bool = False,
     hash_fn: Callable[[str], str] = content_hash,
 ) -> list[SyncAction]:
@@ -547,10 +680,15 @@ def clone(
     actions: list[SyncAction] = []
     for k in source:
         target[k] = source[k]
-        actions.append(SyncAction(
-            k, ActionType.CREATE, 'a_to_b', 'cloned from source',
-            a_hash=hash_fn(source[k]),
-        ))
+        actions.append(
+            SyncAction(
+                k,
+                ActionType.CREATE,
+                "a_to_b",
+                "cloned from source",
+                a_hash=hash_fn(source[k]),
+            )
+        )
 
     if manifest_path is not None:
         save_manifest(snapshot(source, hash_fn=hash_fn), path=manifest_path)
