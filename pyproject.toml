@@ -29,15 +29,26 @@ keywords = [
 authors = [
     { name = "Thor Whalen" },
 ]
+license = "MIT"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = []
 
-[project.license]
-text = "mit"
-
 [project.urls]
-Homepage = "https://github.com/thorwhalen/aikb"
+Homepage = "https://thorwhalen.github.io/aikb/"
 Repository = "https://github.com/thorwhalen/aikb"
 Documentation = "https://thorwhalen.github.io/aikb"
+Issues = "https://github.com/thorwhalen/aikb/issues"
+Changelog = "https://github.com/thorwhalen/aikb/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 claude = [
