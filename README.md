@@ -204,3 +204,21 @@ store = wrap_kvs(
 | `mcp` | `pip install aikb[mcp]` | FastMCP server |
 | `dol` | `pip install aikb[dol]` | dol store transforms |
 | `all` | `pip install aikb[all]` | Everything |
+
+## Skills
+
+This package ships agent skills you can install into any agent host with
+[`gh skill`](https://cli.github.com/manual/gh_skill) (don't have it?
+[install gh](https://cli.github.com/)):
+
+```bash
+gh skill install thorwhalen/aikb aikb-setup --agent claude-code
+gh skill install thorwhalen/aikb aikb-sync
+gh skill install thorwhalen/aikb aikb-maintain
+```
+
+| Skill | Use it when… |
+|-------|--------------|
+| `aikb-setup` | installing, configuring, or starting to use aikb |
+| `aikb-sync` | syncing knowledge files between platforms or directories |
+| `aikb-maintain` | maintaining, extending, or debugging aikb |
